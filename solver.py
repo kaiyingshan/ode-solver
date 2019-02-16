@@ -5,6 +5,7 @@ import sympy.solvers.ode
 from typing import Union, List, Tuple
 
 number = Union[int, float]
+
 __all__ = [
     "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general"
 ]
@@ -97,17 +98,22 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
     y1p = diff(y1, "t")
     fac = exp(integrate(pt, t))
     mu_t = (y1**2) * fac
-    C1 = Symbol("C1")
+
+    C1, C2 = Symbol("C1"), Symbol("C2")
+
     if gt == 0:
         vp = C1 / mu_t
     else:
-        vp = integrate(y1 * gt * fac, t) / mu_t
+        vp = integrate(y1 * gt * fac, t) / mu_t + C1
 
-    v = integrate(vp, t) + Symbol("C2")
-    return v * y1
+    v = integrate(vp, t) + C2
+    return constantsimp(v * y1, {C1, C2})
 
 
 def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Symbol:
+    """
+    :param args: List of solutions [y1, y2, y3, y4]
+    """
     size = len(args)
     w: Matrix = Matrix([
         [diff(args[x], t, i) for i in range(size)] for x in range(size)
@@ -117,6 +123,13 @@ def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Symbol:
 
 
 def var_parameters(y1: Symbol, y2: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Symbol:
+    """
+    Solve the particular solution of a nonhomogeneous second order differential equation given its two complementary solutions
+
+    The equation must be in its standard form: y'' + p(t)y' + q(t)y = g(t)
+
+    Return the particular solution
+    """
     W1 = -y2
     W2 = y1
     goW = gt / Wronskian([y1, y2], t)
@@ -126,12 +139,23 @@ def var_parameters(y1: Symbol, y2: Symbol, gt: Symbol, t: Symbol = Symbol("t")) 
     return yp
 
 
-def to_std(*args: List[Symbol]):
+def to_std(*args: List[Symbol]) -> List[Symbol]:
+    """
+    Convert a linear ordinary differential equation p(t)yn + q(t)yn-1 + ... + r(t)y = f(t) to standard form
+
+    yn + q(t)/p(t)yn-1 + ... + r(t)/p(t)y = f(t)/p(t)
+    """
     pt = args[0]
-    return [1] + [(q / pt) for q in args[1:]]
+    assert pt != 0, "the leading coefficient cannot be zero!"
+    return [(q / pt) for q in args[1:]]
 
 
 def to_general(y: List[Symbol], yp: Symbol = 0, consts: List[Symbol] = []) -> Tuple[Symbol, List[Symbol]]:
+    """
+    Given a list of complementary solutions and a particular solution, give the general solution by
+
+    y(t) = C1*y1(t) + C2*y2(t) + ... + Cn*yn(t) + yp
+    """
     num = len(y)
 
     if len(consts) != num:
@@ -141,7 +165,7 @@ def to_general(y: List[Symbol], yp: Symbol = 0, consts: List[Symbol] = []) -> Tu
     for (y_, C) in zip(y, consts):
         general += C * y_
 
-    return general, consts
+    return constantsimp(general, set(consts)), consts
 
 
 def main():
@@ -159,6 +183,8 @@ def main():
 
     t = Symbol("t")
     print(red_order(4 / t, 3 / t, t**(-2), 0, t))
+
+    print(red_order(4 / t, *to_std(t**2, 3*t, 1), 0, t))
 
     print(Wronskian([t**2, t**3]))
 
