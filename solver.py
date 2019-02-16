@@ -1,14 +1,18 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq
 from sympy.solvers.ode import constantsimp, constant_renumber
 import sympy.solvers.ode
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Dict
 
 number = Union[int, float]
 
 __all__ = [
     "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general"
 ]
+
+
+def first_order_separable():
+    pass
 
 
 def find_root(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
@@ -19,12 +23,14 @@ def find_root(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
     return (-b + disc) / (2*a), (-b - disc) / (2*a)
 
 
-def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol]:
+def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol, List[Tuple[str, List[Symbol]]]]:
     """
     Solve the second order homogeneous differential equation with constant coefficients a, b and c
     Return the pair of complementary solution.
     """
+
     r1, r2 = find_root(a, b, c)
+
     real1, imag1 = r1.as_real_imag()
     real2, imag2 = r2.as_real_imag()
 
@@ -40,10 +46,18 @@ def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t
     else:
         y2 = exp(real2 * t) * sin(imag2 * t)
 
-    return y1, y2
+    r = Symbol("r")
+
+    procedure = [
+        ("Characteristic equation: ", [Eq(a*r**2 + b*r + c, 0)]),
+        ("Roots: ", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
+        ("Solutions:", [y1, y2])
+    ]
+
+    return y1, y2, procedure
 
 
-def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
+def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, List[Tuple[str, List[Symbol]]]]:
     """
     Solve the second order homogeneous Euler's equation at^2 y'' + bty' + cy = 0
     Return the pair of solutions
@@ -68,26 +82,36 @@ def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
     else:
         y2 = (t ** (real2)) * sin(imag2 * ln(t))
 
-    return y1, y2
+    r = Symbol("r")
+    procedure = [
+        ("Characteristic equation: ", [Eq(a*r**2 + (b - a)*r + c, 0)]),
+        ("Roots: ", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
+        ("Solutions:", [y1, y2])
+    ]
+
+    return y1, y2, procedure
 
 
-def solve_ivp(y: Symbol, v: List[Tuple[number, number]], consts: List[Symbol], t: Symbol = Symbol("t")):
+def solve_ivp(y: Symbol, v: List[Tuple[number, number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Dict[Symbol, number], List[Eq]]:
     """
     Solve the initial value problem given the general solution y
 
     :param y: the general solution with all arbitrary constants
     :param v: the list of initial conditions [(y(0), t0), (y'(t1), t1), (y''(t2), t2)...]
-    :param consts: the list of arbitrary constants to be solved.
-    """
 
-    assert len(v) == len(
-        consts), "Number of initial conditions must be equal to the number of arbitrary constants to be solved"
+    :returns: [y with arbitrary constants solved, values of the arbitrary constants, list of equations]
+    """
     equations = []
 
     for i, (t1, y1) in enumerate(v):
-        equations.append(diff(y, t, i).subs(t, t1) - y1)
+        eq = Eq(diff(y, t, i).subs(t, t1), y1)
+        equations.append(eq)
 
-    return solve(equations, *consts)
+    sol = solve(equations)
+    for k in sol:
+        y = y.subs(k, sol[k])
+
+    return y, sol, equations
 
 
 def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Symbol:
@@ -169,17 +193,17 @@ def to_general(y: List[Symbol], yp: Symbol = 0, consts: List[Symbol] = []) -> Tu
 
 
 def main():
-    y1, y2 = sec_order_const_coeff(1, 3, 2)
+    y1, y2, _ = sec_order_const_coeff(1, 3, 2)
     print(y1)
     print(y2)
 
-    y1, y2 = sec_order_euler(1, 11, 25)
+    y1, y2, _ = sec_order_euler(1, 11, 25)
     print(y1)
     print(y2)
 
     y, consts = to_general([y1, y2])
 
-    print(solve_ivp(y, [(1, 8), (1, 5)], consts))
+    print(solve_ivp(y, [(1, 8), (1, 5)]))
 
     t = Symbol("t")
     print(red_order(4 / t, 3 / t, t**(-2), 0, t))
@@ -188,7 +212,7 @@ def main():
 
     print(Wronskian([t**2, t**3]))
 
-    y1, y2 = sec_order_const_coeff(1, -12, 36)
+    y1, y2, _ = sec_order_const_coeff(1, -12, 36)
     print(y1, y2)
 
     yp = var_parameters(y1, y2,
