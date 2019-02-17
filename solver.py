@@ -1,10 +1,11 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant
 from sympy.solvers.ode import constantsimp, constant_renumber
 import sympy.solvers.ode
 from typing import Union, List, Tuple, Dict
 
 number = Union[int, float]
+procedure = List[Tuple[str, List[Symbol]]]
 
 __all__ = [
     "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general"
@@ -49,9 +50,9 @@ def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t
     r = Symbol("r")
 
     procedure = [
-        ("Characteristic equation: ", [Eq(a*r**2 + b*r + c, 0)]),
-        ("Roots: ", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
-        ("Solutions:", [y1, y2])
+        ("\\text{Characteristic equation: }", [Eq(a*r**2 + b*r + c, 0)]),
+        ("\\text{Roots: }", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
+        ("\\text{Solutions: }", [y1, y2])
     ]
 
     return y1, y2, procedure
@@ -84,9 +85,10 @@ def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Li
 
     r = Symbol("r")
     procedure = [
-        ("Characteristic equation: ", [Eq(a*r**2 + (b - a)*r + c, 0)]),
-        ("Roots: ", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
-        ("Solutions:", [y1, y2])
+        ("\\text{Characteristic equation: }",
+         [Eq(a*r**2 + (b - a)*r + c, 0)]),
+        ("\\text{Roots: }", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
+        ("\\text{Solutions: }", [y1, y2])
     ]
 
     return y1, y2, procedure
@@ -134,19 +136,20 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
     return constantsimp(v * y1, {C1, C2})
 
 
-def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Symbol:
+def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Matrix, List[List[Symbol]]]:
     """
     :param args: List of solutions [y1, y2, y3, y4]
     """
     size = len(args)
-    w: Matrix = Matrix([
+    m = [
         [diff(args[x], t, i) for i in range(size)] for x in range(size)
-    ]).transpose()
+    ]
+    w = Matrix(m).transpose()
 
-    return w.det()
+    return w, m
 
 
-def var_parameters(y1: Symbol, y2: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Symbol:
+def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, procedure]:
     """
     Solve the particular solution of a nonhomogeneous second order differential equation given its two complementary solutions
 
@@ -154,13 +157,40 @@ def var_parameters(y1: Symbol, y2: Symbol, gt: Symbol, t: Symbol = Symbol("t")) 
 
     Return the particular solution
     """
-    W1 = -y2
-    W2 = y1
-    goW = gt / Wronskian([y1, y2], t)
-    up1 = W1 * goW
-    up2 = W2 * goW
-    yp = y1 * integrate(up1, t) + y2 * integrate(up2, t)
-    return yp
+    w, m = Wronskian(y, t)
+    W = sympy.simplify(w.det())
+    goW = sympy.simplify(gt / W)
+
+    yp = 0
+
+    Wdets = []
+    integrals = []
+
+    col = [0] * len(y)
+    col[-1] = 1
+    for i in range(len(y)):
+        Wi = w.copy()
+        Wi[:, i] = col.copy()
+        Wi_det = Wi.det()
+
+        integrand = Wi_det * goW
+        integral = integrate(integrand, t)
+        yp += y[i] * integral
+
+        integrals.append(Eq(Integral(integrand, t), integral))
+        Wdets.append(Eq(Determinant(Wi), Wi_det))
+
+    yps = sympy.simplify(yp)
+    procedure = [
+        ('\\text{Compute Wronskian}', [Eq(Determinant(w), W, evaluate=False)]),
+        ('\\text{Compute } W_i', Wdets),
+        ('\\text{Compute } \\frac{g(t)}{W(t)}',
+         [Eq(gt / W, goW, evaluate=False)]),
+        ('\\text{Compute the integral of } \\frac{g(t)W_i(t)}{W(t)}', integrals),
+        ('\\text{Sum together and simplify }', [Eq(yp, yps, evaluate=False)])
+    ]
+
+    return yps, procedure
 
 
 def to_std(*args: List[Symbol]) -> List[Symbol]:
@@ -215,9 +245,9 @@ def main():
     y1, y2, _ = sec_order_const_coeff(1, -12, 36)
     print(y1, y2)
 
-    yp = var_parameters(y1, y2,
-                        7 / t * exp(6 * t)
-                        )
+    yp, _ = var_parameters([y1, y2],
+                           7 / t * exp(6 * t)
+                           )
     print(to_general([y1, y2], yp))
 
     y = Function('y')
