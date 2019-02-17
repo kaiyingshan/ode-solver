@@ -71,16 +71,14 @@ def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t
     real1, imag1 = r1.as_real_imag()
     real2, imag2 = r2.as_real_imag()
 
-    if imag1 == 0:
+    if imag1 == 0 and imag2 == 0:  # two real roots
         y1 = exp(real1 * t)
-    else:
-        y1 = exp(real1 * t) * cos(imag1 * t)
-    if imag2 == 0:
-        if real1 == real2:
+        if real1 == real2:  # repeated roots
             y2 = t * exp(real2 * t)
         else:
             y2 = exp(real2 * t)
-    else:
+    else:  # imaginary/complex roots
+        y1 = exp(real1 * t) * cos(imag1 * t)
         y2 = exp(real2 * t) * sin(imag2 * t)
 
     r = Symbol("r")
@@ -107,16 +105,14 @@ def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Pr
 
     t = Symbol("t")
 
-    if imag1 == 0:
+    if imag1 == 0 and imag2 == 0:  # two real roots
         y1 = t ** real1
-    else:
-        y1 = (t ** (real1)) * cos(imag1 * ln(t))
-    if imag2 == 0:
-        if real1 == real2:
+        if real1 == real2:  # repeated roots
             y2 = ln(t) * t ** real2
-        else:
+        else:  # distinct real roots
             y2 = t ** real2
-    else:
+    else:  # imaginary/complex roots
+        y1 = (t ** (real1)) * cos(imag1 * ln(t))
         y2 = (t ** (real2)) * sin(imag2 * ln(t))
 
     r = Symbol("r")
