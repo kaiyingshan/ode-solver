@@ -1,5 +1,5 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp
 from sympy.solvers.ode import constantsimp, constant_renumber
 import sympy.solvers.ode
 from typing import Union, List, Tuple, Dict
@@ -188,16 +188,20 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
 
 def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Determinant, Matrix]:
     """
-    :param args: List of solutions [y1, y2, y3, y4]
+    :param args: List of complementary solutions [y1, y2, ..., yn]
 
-    :returns: [the wroksian matrix, ]
+    :returns: [Wronskian determinant, Wronskian matrix]
     """
     size = len(args)
     w = Matrix([
         [diff(args[x], t, i) for i in range(size)] for x in range(size)
     ]).transpose()
 
-    return simplify(w.det()), w
+    return trigsimp(simplify(w.det()), deep=True, recursive=True), w
+
+
+def undetermined_coeffs(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
+    pass
 
 
 def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
@@ -221,7 +225,7 @@ def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tupl
     for i in range(len(y)):
         Wi = w.copy()
         Wi[:, i] = col.copy()
-        Wi_det = Wi.det()
+        Wi_det = simplify(Wi.det())
 
         integrand = Wi_det * goW
         integral = integrate(integrand, t)
