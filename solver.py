@@ -1,19 +1,55 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex
 from sympy.solvers.ode import constantsimp, constant_renumber
 import sympy.solvers.ode
 from typing import Union, List, Tuple, Dict
 
 number = Union[int, float]
-procedure = List[Tuple[str, List[Symbol]]]
+Procedure = List[Tuple[str, List[Symbol]]]
 
 __all__ = [
-    "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general"
+    "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general", "display_procedure"
 ]
+
+
+def display_procedure(procedure: Procedure) -> None:
+    """
+    Pretty print the procedure in IPython (Jupyter) notebook
+    """
+    from IPython.display import display, Math
+
+    for desc, p in procedure:
+        display(Math(desc))
+        for x in p:
+            display(Math(latex(x, ln_notation=True)))
 
 
 def first_order_separable():
     pass
+
+
+def first_order_linear():
+    pass
+
+
+def first_order_homogeneous():
+    pass
+
+
+def first_order_autonomous():
+    pass
+
+
+def first_order_exact():
+    pass
+
+
+def first_order_bernoulli():
+    pass
+
+
+def _derivative_repr(y: Function = Function('y', real = True), t: Symbol = "t", order: int = 0):
+    return y(t).diff(t, order)
 
 
 def find_root(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
@@ -24,7 +60,7 @@ def find_root(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
     return (-b + disc) / (2*a), (-b - disc) / (2*a)
 
 
-def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol, List[Tuple[str, List[Symbol]]]]:
+def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol, Procedure]:
     """
     Solve the second order homogeneous differential equation with constant coefficients a, b and c
     Return the pair of complementary solution.
@@ -52,13 +88,13 @@ def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t
     procedure = [
         ("\\text{Characteristic equation: }", [Eq(a*r**2 + b*r + c, 0)]),
         ("\\text{Roots: }", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
-        ("\\text{Solutions: }", [y1, y2])
+        ("\\text{Solutions: }", [Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2)])
     ]
 
     return y1, y2, procedure
 
 
-def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, List[Tuple[str, List[Symbol]]]]:
+def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Procedure]:
     """
     Solve the second order homogeneous Euler's equation at^2 y'' + bty' + cy = 0
     Return the pair of solutions
@@ -88,32 +124,50 @@ def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Li
         ("\\text{Characteristic equation: }",
          [Eq(a*r**2 + (b - a)*r + c, 0)]),
         ("\\text{Roots: }", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
-        ("\\text{Solutions: }", [y1, y2])
+        ("\\text{Solutions: }", [Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2)])
     ]
 
     return y1, y2, procedure
 
 
-def solve_ivp(y: Symbol, v: List[Tuple[number, number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Dict[Symbol, number], List[Eq]]:
+def solve_ivp(y: Symbol, v: List[Tuple[number, number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
     Solve the initial value problem given the general solution y
 
     :param y: the general solution with all arbitrary constants
     :param v: the list of initial conditions [(y(0), t0), (y'(t1), t1), (y''(t2), t2)...]
 
-    :returns: [y with arbitrary constants solved, values of the arbitrary constants, list of equations]
+    :returns: [y with solved arbitrary constants substituted, procedure]
     """
     equations = []
+    derivatives = []
 
     for i, (t1, y1) in enumerate(v):
-        eq = Eq(diff(y, t, i).subs(t, t1), y1)
+        derivative = diff(y, t, i)
+
+        d_simp = simplify(derivative)
+
+        eq = Eq(d_simp.subs(t, t1), y1)
+        # derivatives.append(Eq(_derivative_repr(order=i),
+        #                       Eq(derivative, d_simp, evaluate=False), evaluate=False))
+
+        derivatives.append(
+            Eq(_derivative_repr(order=i), d_simp, evaluate=False))
+
         equations.append(eq)
 
     sol = solve(equations)
     for k in sol:
         y = y.subs(k, sol[k])
 
-    return y, sol, equations
+    procedure = [
+        ('\\text{Find successive derivatives of } y(t)', derivatives),
+        ('\\text{Substitute the initial conditions}', equations),
+        ('\\text{Solve for the arbitrary constants}', [sol]),
+        ('\\text{Substitute the solved constants into } y(t)', [y])
+    ]
+
+    return y, procedure
 
 
 def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Symbol:
@@ -136,30 +190,30 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
     return constantsimp(v * y1, {C1, C2})
 
 
-def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Matrix, List[List[Symbol]]]:
+def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Determinant, Matrix]:
     """
     :param args: List of solutions [y1, y2, y3, y4]
+
+    :returns: [the wroksian matrix, ]
     """
     size = len(args)
-    m = [
+    w = Matrix([
         [diff(args[x], t, i) for i in range(size)] for x in range(size)
-    ]
-    w = Matrix(m).transpose()
+    ]).transpose()
 
-    return w, m
+    return simplify(w.det()), w
 
 
-def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, procedure]:
+def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
-    Solve the particular solution of a nonhomogeneous second order differential equation given its two complementary solutions
+    Solve the particular solution of a nonhomogeneous second order differential equation given its two complementary solutions using variation of parameters
 
     The equation must be in its standard form: y'' + p(t)y' + q(t)y = g(t)
 
     Return the particular solution
     """
-    w, m = Wronskian(y, t)
-    W = sympy.simplify(w.det())
-    goW = sympy.simplify(gt / W)
+    W, w = Wronskian(y, t)
+    goW = simplify(gt / W)
 
     yp = 0
 
@@ -178,16 +232,20 @@ def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tupl
         yp += y[i] * integral
 
         integrals.append(Eq(Integral(integrand, t), integral))
-        Wdets.append(Eq(Determinant(Wi), Wi_det))
+        Wdets.append(
+            Eq(Symbol('W{}'.format(i+1)), Eq(Determinant(Wi), Wi_det), evaluate=False))
 
-    yps = sympy.simplify(yp)
+    yps = simplify(yp)
+
     procedure = [
-        ('\\text{Compute Wronskian}', [Eq(Determinant(w), W, evaluate=False)]),
+        ('\\text{Compute Wronskian}', [
+         Eq(Symbol('W'), Eq(Determinant(w), W, evaluate=False), evaluate=False)]),
         ('\\text{Compute } W_i', Wdets),
         ('\\text{Compute } \\frac{g(t)}{W(t)}',
-         [Eq(gt / W, goW, evaluate=False)]),
-        ('\\text{Compute the integral of } \\frac{g(t)W_i(t)}{W(t)}', integrals),
-        ('\\text{Sum together and simplify }', [Eq(yp, yps, evaluate=False)])
+         [Eq(sympy.Mul(gt, sympy.Pow(W, -1, evaluate=False), evaluate=False), goW, evaluate=False)]),
+        ('\\text{Compute } \\int \\frac{g(t)W_i(t)}{W(t)} dt', integrals),
+        ('\\text{Compute the sum } \\sum_{i=1}^{k} y_i \\int \\frac{g(t)W_i(t)}{W(t)} dt', [
+         Eq(yp, yps, evaluate=False)])
     ]
 
     return yps, procedure
@@ -204,7 +262,7 @@ def to_std(*args: List[Symbol]) -> List[Symbol]:
     return [(q / pt) for q in args[1:]]
 
 
-def to_general(y: List[Symbol], yp: Symbol = 0, consts: List[Symbol] = []) -> Tuple[Symbol, List[Symbol]]:
+def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = Symbol("t")) -> Tuple[Symbol, List[Symbol]]:
     """
     Given a list of complementary solutions and a particular solution, give the general solution by
 
@@ -212,12 +270,14 @@ def to_general(y: List[Symbol], yp: Symbol = 0, consts: List[Symbol] = []) -> Tu
     """
     num = len(y)
 
-    if len(consts) != num:
-        consts = [Symbol('C' + str(i + 1)) for i in range(num)]
+    # if len(consts) != num:
+    consts = [Symbol('C' + str(i + 1)) for i in range(num)]
 
     general = yp
     for (y_, C) in zip(y, consts):
         general += C * y_
+
+    general = sympy.collect(general, t)
 
     return constantsimp(general, set(consts)), consts
 
