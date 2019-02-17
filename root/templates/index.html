@@ -7,8 +7,9 @@
     <title>Document</title>
 </head>
 <body>
-    <form>
-        y'' + <input type="text" id="p">y' + <input type="text" id="q">y = <input type="text" id = "p"><br><br>
+    <form method="POST" action="/ode/">
+        {% csrf_token %}
+        <input type="text" id="r" name="r">y'' + <input type="text" id="p" name="p">y' + <input type="text" id="q" name="q">y = <input type="text" id = "g" name="g"><br><br>
         <input type="submit" value="Submit">
     </form>
 </body>
