@@ -4,7 +4,7 @@ from sympy.solvers.ode import constantsimp, constant_renumber
 import sympy.solvers.ode
 from typing import Union, List, Tuple, Dict
 
-number = Union[int, float]
+Number = Union[int, float]
 Procedure = List[Tuple[str, List[Symbol]]]
 
 __all__ = [
@@ -52,7 +52,7 @@ def _derivative_repr(y: Function = Function('y', real = True), t: Symbol = "t", 
     return y(t).diff(t, order)
 
 
-def find_root(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
+def find_root(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol]:
     """
     Return the root of the characteristic equation ar^2 + br + c = 0
     """
@@ -60,7 +60,7 @@ def find_root(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
     return (-b + disc) / (2*a), (-b - disc) / (2*a)
 
 
-def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol, Procedure]:
+def sec_order_const_coeff(a: Number, b: Number, c: Number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol, Procedure]:
     """
     Solve the second order homogeneous differential equation with constant coefficients a, b and c
     Return the pair of complementary solution.
@@ -92,7 +92,7 @@ def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t
     return y1, y2, procedure
 
 
-def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Procedure]:
+def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol, Procedure]:
     """
     Solve the second order homogeneous Euler's equation at^2 y'' + bty' + cy = 0
     Return the pair of solutions
@@ -126,7 +126,7 @@ def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Pr
     return y1, y2, procedure
 
 
-def solve_ivp(y: Symbol, v: List[Tuple[number, number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
+def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
     Solve the initial value problem given the general solution y
 
