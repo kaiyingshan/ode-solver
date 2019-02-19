@@ -1,5 +1,5 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative
 from sympy.solvers.ode import constantsimp, constant_renumber
 import sympy.solvers.ode
 from typing import Union, List, Tuple, Dict
@@ -48,7 +48,11 @@ def first_order_bernoulli():
     pass
 
 
-def _derivative_repr(y: Function = Function('y', real = True), t: Symbol = "t", order: int = 0):
+def first_order_riccati():
+    pass
+
+
+def _derivative_repr(y: Function = Function('y', real=True), t: Symbol = "t", order: int = 0):
     return y(t).diff(t, order)
 
 
@@ -170,24 +174,85 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")
     return y, procedure
 
 
-def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Symbol:
+def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
     Get the other solution of a second order linear differential equation y'' + p(t)y' + q(t)y = g(t) given a solution y1 by reduction of order.
     :returns: the other solution
     """
-    y1p = diff(y1, "t")
-    fac = exp(integrate(pt, t))
-    mu_t = (y1**2) * fac
 
-    C1, C2 = Symbol("C1"), Symbol("C2")
+    v = Function('v')(t)
+    y2 = v * y1
 
-    if gt == 0:
-        vp = C1 / mu_t
-    else:
-        vp = integrate(y1 * gt * fac, t) / mu_t + C1
+    # get the derivatives
+    y2pp = simplify(diff(y2, t, 2)).expand()
+    y2p = simplify(diff(y2, t, 1)).expand()
 
-    v = integrate(vp, t) + C2
-    return constantsimp(v * y1, {C1, C2})
+    # plug in derivatives and simplify
+    expr = y2pp + pt * y2p + y2 * qt
+    simp_expr = simplify(expr).expand()
+
+    # now we should have an equation with only v'' and v'
+    # use w = v'
+    w = Function('w')(t)
+    w_expr = simp_expr.subs(v.diff(t, 1), w).expand()
+
+    # convert to the standard form of a first order linear diff eq.
+    wp = w.diff(t, 1)
+    wp_coeff = w_expr.collect(wp).coeff(wp)
+
+    p = simplify(w_expr / wp_coeff).expand()
+    q = simplify(gt / wp_coeff).expand()
+
+    u = exp(integrate(p.coeff(w), t))
+
+    C1 = Symbol('C1')
+    C2 = Symbol('C2')
+
+    w_sol = simplify((integrate(q * u, t) + C1) / u)
+
+    # integrate w to find v
+    v_sol = integrate(w_sol, t) + C2
+
+    # y2 = v y1
+    sol = simplify(y1 * v_sol)
+
+    procedure = [
+        ('\\text{Solution }y_2 \\text{ takes the form } y_2 = v(t)y_1', [
+            Eq(Symbol('y2'), y2)
+        ]),
+        ('\\text{Calculate the derivatives}', [
+            Eq(Derivative(y2, t, 1), y2p, evaluate=False),
+            Eq(Derivative(y2, t, 2), y2pp, evaluate=False)
+        ]),
+        ("\\text{Plug in the derivatives and simplify LHS of } y'' + p(t)y' + q(t)y = g(t) \\\\v''(t) \\text{ terms should cancel out}", [
+            Eq(Eq(expr, simp_expr, evaluate=False), gt, evaluate=False)
+        ]),
+        ("\\text{Let } w(t) = v'(t) \\text{ and convert to standard form}", [
+            Eq(w_expr, gt, evaluate=False),  Eq(p, q, evaluate=False)
+        ]),
+        ('\\text{Solve the first order linear differential equation in } w(t)', [
+            Eq(w, w_sol)
+        ]),
+        ('\\text{Integrate } w(t) \\text{ to solve for} v(t)', [
+            Eq(Integral(w_sol, t), v_sol, evaluate=False)
+        ]),
+        ('\\text{Solve for y2: } y_2 = v(t) y_1(t)', [Eq(Symbol('y2'), sol)])
+    ]
+
+    return y2, procedure
+    # y1p = diff(y1, "t")
+    # fac = exp(integrate(pt, t))
+    # mu_t = (y1**2) * fac
+
+    # C1, C2 = Symbol("C1"), Symbol("C2")
+
+    # if gt == 0:
+    #     vp = C1 / mu_t
+    # else:
+    #     vp = integrate(y1 * gt * fac, t) / mu_t + C1
+
+    # v = integrate(vp, t) + C2
+    # return constantsimp(v * y1, {C1, C2})
 
 
 def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Determinant, Matrix]:
@@ -321,6 +386,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# 3*(log(sin(4*t) - 1) - log(sin(4*t) + 1))*cos(4*t)/32)
-# C*sin(4x)+D*cos(4x) - 3/16 * cos(4x) * (ln(|sec(4x)+tan(4x)|) + sin(4x)) - 3 / 16 * cos(4x) * sin(4x)
