@@ -65,7 +65,6 @@ def ode(request: HttpRequest):
 
                 pass
             pass
-            # second order
 
         return JsonResponse({"p": request.POST["p"]})
     else:

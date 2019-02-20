@@ -54,6 +54,7 @@
 
           function(data) {
             $("#result").html("Result:");
+            $("#procedure").html("");
             for (let key in data.result) {
               $('<p style="margin:0">$' + data.result[key] + "$</p>").appendTo(
                 "#result"
@@ -73,7 +74,6 @@
 
             MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
             // $("#result").text(JSON.stringify(data.result));
-            // $("#procedure").text(JSON.stringify(data.procedure));
           },
           "json"
         );
