@@ -55,7 +55,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            "/home/kaiying/Desktop/ode-solver/root/templates"
+            os.path.join(BASE_DIR, "root", "templates")
         ],
         'APP_DIRS': True,
         'OPTIONS': {

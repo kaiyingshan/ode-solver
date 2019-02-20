@@ -1,10 +1,10 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative
 from sympy.solvers.ode import constantsimp, constant_renumber
 import sympy.solvers.ode
 from typing import Union, List, Tuple, Dict
 
-number = Union[int, float]
+Number = Union[int, float]
 Procedure = List[Tuple[str, List[Symbol]]]
 
 __all__ = [
@@ -48,11 +48,15 @@ def first_order_bernoulli():
     pass
 
 
-def _derivative_repr(y: Function = Function('y', real = True), t: Symbol = "t", order: int = 0):
+def first_order_riccati():
+    pass
+
+
+def _derivative_repr(y: Function = Function('y', real=True), t: Symbol = "t", order: int = 0):
     return y(t).diff(t, order)
 
 
-def find_root(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
+def find_root(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol]:
     """
     Return the root of the characteristic equation ar^2 + br + c = 0
     """
@@ -60,7 +64,7 @@ def find_root(a: number, b: number, c: number) -> Tuple[Symbol, Symbol]:
     return (-b + disc) / (2*a), (-b - disc) / (2*a)
 
 
-def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol, Procedure]:
+def sec_order_const_coeff(a: Number, b: Number, c: Number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol, Procedure]:
     """
     Solve the second order homogeneous differential equation with constant coefficients a, b and c
     Return the pair of complementary solution.
@@ -68,31 +72,47 @@ def sec_order_const_coeff(a: number, b: number, c: number, t: Symbol = Symbol("t
 
     r1, r2 = find_root(a, b, c)
 
-    real1, imag1 = r1.as_real_imag()
-    real2, imag2 = r2.as_real_imag()
+    if r1.is_number and r2.is_number:
+        real1, imag1 = r1.as_real_imag()
+        real2, imag2 = r2.as_real_imag()
 
-    if imag1 == 0 and imag2 == 0:  # two real roots
-        y1 = exp(real1 * t)
-        if real1 == real2:  # repeated roots
-            y2 = t * exp(real2 * t)
+        imag2 = abs(imag2)
+
+        if imag1 == 0 and imag2 == 0:  # two real roots
+            y1 = exp(real1 * t)
+            if real1 == real2:  # repeated roots
+                y2 = t * exp(real2 * t)
+            else:
+                y2 = exp(real2 * t)
+        else:  # imaginary/complex roots
+            y1 = exp(real1 * t) * cos(imag1 * t)
+            y2 = exp(real2 * t) * sin(imag2 * t)
+    else:
+        if r1 == r2:
+            y1 = exp(r1 * t)
+            y2 = t * exp(r2 * t)
         else:
-            y2 = exp(real2 * t)
-    else:  # imaginary/complex roots
-        y1 = exp(real1 * t) * cos(imag1 * t)
-        y2 = exp(real2 * t) * sin(imag2 * t)
+            y1 = exp(r1 * t)
+            y2 = exp(r2 * t)
 
     r = Symbol("r")
 
     procedure = [
-        ("\\text{Characteristic equation: }", [Eq(a*r**2 + b*r + c, 0)]),
-        ("\\text{Roots: }", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
-        ("\\text{Solutions: }", [Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2)])
+        ("\\text{Characteristic equation: }", [
+            Eq(a*r**2 + b*r + c, 0, evaluate=False)
+        ]),
+        ("\\text{Roots: }", [
+            Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2, evaluate=False)
+        ]),
+        ("\\text{Solutions: }", [
+            Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2, evaluate=False)
+        ])
     ]
 
     return y1, y2, procedure
 
 
-def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Procedure]:
+def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol, Procedure]:
     """
     Solve the second order homogeneous Euler's equation at^2 y'' + bty' + cy = 0
     Return the pair of solutions
@@ -102,6 +122,8 @@ def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Pr
 
     real1, imag1 = r1.as_real_imag()
     real2, imag2 = r2.as_real_imag()
+
+    imag2 = abs(imag2)
 
     t = Symbol("t")
 
@@ -126,7 +148,7 @@ def sec_order_euler(a: number, b: number, c: number) -> Tuple[Symbol, Symbol, Pr
     return y1, y2, procedure
 
 
-def solve_ivp(y: Symbol, v: List[Tuple[number, number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
+def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
     Solve the initial value problem given the general solution y
 
@@ -166,38 +188,111 @@ def solve_ivp(y: Symbol, v: List[Tuple[number, number]], t: Symbol = Symbol("t")
     return y, procedure
 
 
-def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Symbol:
+def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
-    Get the other solution of a second order linear differential equation y'' + p(t)y' + q(t)y = g(t) given a solution y1 by reduction of order.
+    Get the other solution of a second order linear differential equation y'' + p(t)y' + q(t)y = g(t) given a solution y1 that solves the homogeneous case by reduction of order.
     :returns: the other solution
     """
-    y1p = diff(y1, "t")
-    fac = exp(integrate(pt, t))
-    mu_t = (y1**2) * fac
 
-    C1, C2 = Symbol("C1"), Symbol("C2")
+    y1p = diff(y1, t, 1)
+    y1pp = diff(y1, t, 2)
 
-    if gt == 0:
-        vp = C1 / mu_t
-    else:
-        vp = integrate(y1 * gt * fac, t) / mu_t + C1
+    v = Function('v')(t)
+    y2 = v * y1
 
-    v = integrate(vp, t) + C2
-    return constantsimp(v * y1, {C1, C2})
+    # get the derivatives
+    y2pp = diff(y2, t, 2).expand()
+    y2p = diff(y2, t, 1).expand()
+
+    # plug in derivatives and simplify
+    expr = (y2pp + pt * y2p + y2 * qt).expand().collect(v)
+
+    # note that y1 should solve the homogeneous case
+    simp_expr = expr.subs(y1pp + pt*y1p + qt*y1, 0)
+
+    # now we should have an equation with only v'' and v'
+    # use w = v'
+    w = Function('w')(t)
+    wp = w.diff(t, 1)
+    w_expr = simp_expr.subs(v.diff(t, 1), w).expand().collect(w)
+
+    # convert to the standard form of a first order linear diff eq.
+    wp_coeff = w_expr.collect(wp).coeff(wp)
+
+    p = (w_expr / wp_coeff).expand().collect(w)
+    q = (gt / wp_coeff).expand()
+
+    u = exp(integrate(p.coeff(w), t))
+
+    C1 = Symbol('C1')
+    C2 = Symbol('C2')
+
+    w_sol = simplify((integrate(simplify(q * u).expand(), t) + C1) / u)
+
+    # integrate w to find v
+    v_sol = integrate(w_sol, t) + C2
+
+    # y2 = v y1
+    sol = (y1 * v_sol).expand()
+    sol_simp = constantsimp(sol, {C1, C2})
+
+    procedure = [
+        ('\\text{Solution }y_2 \\text{ takes the form } y_2 = v(t)y_1', [
+            Eq(Symbol('y2'), y2, evaluate=False)
+        ]),
+        ('\\text{Calculate the derivatives}', [
+            Eq(Derivative(y2, t, 1), y2p, evaluate=False),
+            Eq(Derivative(y2, t, 2), y2pp, evaluate=False)
+        ]),
+        ("\\text{Plug in the derivatives and simplify LHS of } y'' + p(t)y' + q(t)y = g(t) \\\\v(t) \\text{ terms should cancel out}", [
+            Eq(Eq(expr, simp_expr, evaluate=False), gt, evaluate=False)
+        ]),
+        ("\\text{Let } w(t) = v'(t) \\text{ and convert to standard form}", [
+            Eq(w_expr, gt, evaluate=False),  Eq(p, q, evaluate=False)
+        ]),
+        ('\\text{Solve the first order linear differential equation in } w(t)', [
+            Eq(w, w_sol, evaluate=False)
+        ]),
+        ('\\text{Integrate } w(t) \\text{ to solve for} v(t)', [
+            Eq(Integral(w_sol, t), v_sol, evaluate=False)
+        ]),
+        ('\\text{Solve for y2: } y_2 = v(t) y_1(t)', [
+            Eq(Symbol('y2'), Eq(sol, sol_simp, evaluate=False), evaluate=False)
+        ])
+    ]
+
+    return sol_simp, procedure
+    # y1p = diff(y1, "t")
+    # fac = exp(integrate(pt, t))
+    # mu_t = (y1**2) * fac
+
+    # C1, C2 = Symbol("C1"), Symbol("C2")
+
+    # if gt == 0:
+    #     vp = C1 / mu_t
+    # else:
+    #     vp = integrate(y1 * gt * fac, t) / mu_t + C1
+
+    # v = integrate(vp, t) + C2
+    # return constantsimp(v * y1, {C1, C2})
 
 
 def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Determinant, Matrix]:
     """
-    :param args: List of solutions [y1, y2, y3, y4]
+    :param args: List of complementary solutions [y1, y2, ..., yn]
 
-    :returns: [the wroksian matrix, ]
+    :returns: [Wronskian determinant, Wronskian matrix]
     """
     size = len(args)
     w = Matrix([
         [diff(args[x], t, i) for i in range(size)] for x in range(size)
     ]).transpose()
 
-    return simplify(w.det()), w
+    return trigsimp(simplify(w.det()), deep=True, recursive=True), w
+
+
+def undetermined_coeffs(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
+    pass
 
 
 def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
@@ -221,10 +316,10 @@ def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tupl
     for i in range(len(y)):
         Wi = w.copy()
         Wi[:, i] = col.copy()
-        Wi_det = Wi.det()
+        Wi_det = simplify(Wi.det())
 
-        integrand = Wi_det * goW
-        integral = integrate(integrand, t)
+        integrand = simplify(Wi_det * goW).expand()
+        integral = simplify(integrate(integrand, t)).expand()
         yp += y[i] * integral
 
         integrals.append(Eq(Integral(integrand, t), integral))

@@ -2,3 +2,5 @@
 .mypy_cache
 .ipynb_checkpoints
 __pycache__
+tests
+test.ipynb
