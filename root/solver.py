@@ -72,27 +72,41 @@ def sec_order_const_coeff(a: Number, b: Number, c: Number, t: Symbol = Symbol("t
 
     r1, r2 = find_root(a, b, c)
 
-    real1, imag1 = r1.as_real_imag()
-    real2, imag2 = r2.as_real_imag()
+    if r1.is_number and r2.is_number:
+        real1, imag1 = r1.as_real_imag()
+        real2, imag2 = r2.as_real_imag()
 
-    imag2 = abs(imag2)
+        imag2 = abs(imag2)
 
-    if imag1 == 0 and imag2 == 0:  # two real roots
-        y1 = exp(real1 * t)
-        if real1 == real2:  # repeated roots
-            y2 = t * exp(real2 * t)
+        if imag1 == 0 and imag2 == 0:  # two real roots
+            y1 = exp(real1 * t)
+            if real1 == real2:  # repeated roots
+                y2 = t * exp(real2 * t)
+            else:
+                y2 = exp(real2 * t)
+        else:  # imaginary/complex roots
+            y1 = exp(real1 * t) * cos(imag1 * t)
+            y2 = exp(real2 * t) * sin(imag2 * t)
+    else:
+        if r1 == r2:
+            y1 = exp(r1 * t)
+            y2 = t * exp(r2 * t)
         else:
-            y2 = exp(real2 * t)
-    else:  # imaginary/complex roots
-        y1 = exp(real1 * t) * cos(imag1 * t)
-        y2 = exp(real2 * t) * sin(imag2 * t)
+            y1 = exp(r1 * t)
+            y2 = exp(r2 * t)
 
     r = Symbol("r")
 
     procedure = [
-        ("\\text{Characteristic equation: }", [Eq(a*r**2 + b*r + c, 0)]),
-        ("\\text{Roots: }", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
-        ("\\text{Solutions: }", [Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2)])
+        ("\\text{Characteristic equation: }", [
+            Eq(a*r**2 + b*r + c, 0, evaluate=False)
+        ]),
+        ("\\text{Roots: }", [
+            Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2, evaluate=False)
+        ]),
+        ("\\text{Solutions: }", [
+            Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2, evaluate=False)
+        ])
     ]
 
     return y1, y2, procedure
@@ -176,45 +190,50 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")
 
 def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
-    Get the other solution of a second order linear differential equation y'' + p(t)y' + q(t)y = g(t) given a solution y1 by reduction of order.
+    Get the other solution of a second order linear differential equation y'' + p(t)y' + q(t)y = g(t) given a solution y1 that solves the homogeneous case by reduction of order.
     :returns: the other solution
     """
+
+    y1p = diff(y1, t, 1)
+    y1pp = diff(y1, t, 2)
 
     v = Function('v')(t)
     y2 = v * y1
 
     # get the derivatives
-    y2pp = simplify(diff(y2, t, 2)).expand()
-    y2p = simplify(diff(y2, t, 1)).expand()
+    y2pp = diff(y2, t, 2).expand()
+    y2p = diff(y2, t, 1).expand()
 
     # plug in derivatives and simplify
-    expr = y2pp + pt * y2p + y2 * qt
-    simp_expr = simplify(expr).expand()
+    expr = (y2pp + pt * y2p + y2 * qt).expand().collect(v)
+
+    # note that y1 should solve the homogeneous case
+    simp_expr = expr.subs(y1pp + pt*y1p + qt*y1, 0)
 
     # now we should have an equation with only v'' and v'
     # use w = v'
     w = Function('w')(t)
-    w_expr = simp_expr.subs(v.diff(t, 1), w).expand()
+    wp = w.diff(t, 1)
+    w_expr = simp_expr.subs(v.diff(t, 1), w).expand().collect(w)
 
     # convert to the standard form of a first order linear diff eq.
-    wp = w.diff(t, 1)
     wp_coeff = w_expr.collect(wp).coeff(wp)
 
-    p = simplify(w_expr / wp_coeff).expand()
-    q = simplify(gt / wp_coeff).expand()
+    p = (w_expr / wp_coeff).expand().collect(w)
+    q = (gt / wp_coeff).expand()
 
     u = exp(integrate(p.coeff(w), t))
 
     C1 = Symbol('C1')
     C2 = Symbol('C2')
 
-    w_sol = simplify((integrate(q * u, t) + C1) / u)
+    w_sol = simplify((integrate(simplify(q * u).expand(), t) + C1) / u)
 
     # integrate w to find v
     v_sol = integrate(w_sol, t) + C2
 
     # y2 = v y1
-    sol = simplify(y1 * v_sol).expand()
+    sol = (y1 * v_sol).expand()
     sol_simp = constantsimp(sol, {C1, C2})
 
     procedure = [
@@ -225,7 +244,7 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
             Eq(Derivative(y2, t, 1), y2p, evaluate=False),
             Eq(Derivative(y2, t, 2), y2pp, evaluate=False)
         ]),
-        ("\\text{Plug in the derivatives and simplify LHS of } y'' + p(t)y' + q(t)y = g(t) \\\\v''(t) \\text{ terms should cancel out}", [
+        ("\\text{Plug in the derivatives and simplify LHS of } y'' + p(t)y' + q(t)y = g(t) \\\\v(t) \\text{ terms should cancel out}", [
             Eq(Eq(expr, simp_expr, evaluate=False), gt, evaluate=False)
         ]),
         ("\\text{Let } w(t) = v'(t) \\text{ and convert to standard form}", [
@@ -299,8 +318,8 @@ def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tupl
         Wi[:, i] = col.copy()
         Wi_det = simplify(Wi.det())
 
-        integrand = Wi_det * goW
-        integral = integrate(integrand, t)
+        integrand = simplify(Wi_det * goW).expand()
+        integral = simplify(integrate(integrand, t)).expand()
         yp += y[i] * integral
 
         integrals.append(Eq(Integral(integrand, t), integral))
