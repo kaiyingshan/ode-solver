@@ -214,11 +214,12 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
     v_sol = integrate(w_sol, t) + C2
 
     # y2 = v y1
-    sol = simplify(y1 * v_sol)
+    sol = simplify(y1 * v_sol).expand()
+    sol_simp = constantsimp(sol, {C1, C2})
 
     procedure = [
         ('\\text{Solution }y_2 \\text{ takes the form } y_2 = v(t)y_1', [
-            Eq(Symbol('y2'), y2)
+            Eq(Symbol('y2'), y2, evaluate=False)
         ]),
         ('\\text{Calculate the derivatives}', [
             Eq(Derivative(y2, t, 1), y2p, evaluate=False),
@@ -231,15 +232,17 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
             Eq(w_expr, gt, evaluate=False),  Eq(p, q, evaluate=False)
         ]),
         ('\\text{Solve the first order linear differential equation in } w(t)', [
-            Eq(w, w_sol)
+            Eq(w, w_sol, evaluate=False)
         ]),
         ('\\text{Integrate } w(t) \\text{ to solve for} v(t)', [
             Eq(Integral(w_sol, t), v_sol, evaluate=False)
         ]),
-        ('\\text{Solve for y2: } y_2 = v(t) y_1(t)', [Eq(Symbol('y2'), sol)])
+        ('\\text{Solve for y2: } y_2 = v(t) y_1(t)', [
+            Eq(Symbol('y2'), Eq(sol, sol_simp, evaluate=False), evaluate=False)
+        ])
     ]
 
-    return y2, procedure
+    return sol_simp, procedure
     # y1p = diff(y1, "t")
     # fac = exp(integrate(pt, t))
     # mu_t = (y1**2) * fac
