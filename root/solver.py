@@ -111,31 +111,81 @@ def first_order_exact(M: Symbol, N: Symbol, implicit=True, y: Symbol = Symbol('y
 
     if not exact:
         # integrating factor
-        miu_diff_x = Eq(Derivative(mu, x), (My - Nx) * mu / N)
+        miu_diff_x = (My - Nx) / N
         miu_diff_x = simplify(miu_diff_x)
 
         if y in miu_diff_x.free_symbols:
-            miu_diff_y = Eq(Derivative(mu, y), (Nx - My) * mu / M)
-            miu_diff_y = simplify(miu_diff_y)
+
+            miu_diff_y = (Nx - My) / M
+            miu_diff_x = simplify(miu_diff_y)
 
             if x in miu_diff_y.free_symbols:
-                print("fuck you")
+                return None, [('\\text{Could not solve}', [])]
 
-            rhs = integrate(miu_diff_y, y)
+            else:
+
+                rhs = integrate(miu_diff_y, y)
+                miu = Eq(ln(mu), rhs)
+
+                miu_result = exp(rhs)
+
+
+                procedure.extend([
+                    ('Calculate the integrating factor', [
+                        Eq(Derivative(mu, y), (Nx - My) * mu / M, evaluate=False)
+                    ]),
+                    ('\\text{The integrating factor is}', [miu_result])
+                ])
+                pass
+
+        else:
+
+            rhs = integrate(miu_diff_x, x)
             miu = Eq(ln(mu), rhs + c)
-            pass
 
-        rhs = integrate(miu_diff_x, x)
-        miu = Eq(ln(mu), rhs + c)
-        pass
+            miu_result = exp(rhs)
+
+            procedure.extend([
+                ('\\text{Calculate the integrating factor}', [
+                    Eq(Derivative(mu, x), (My - Nx) * mu / N, evaluate=False)
+                ]), 
+                ('\\text{The integrating factor is}', [miu_result])
+            ])
+
+        M = M * miu_result
+        N = N * miu_result
+
+        My = diff(M, y)
+        Nx = diff(N, x)
+
+        procedure.append(('\\text{Multiply both sides with the integrating factor,}', [
+                         Eq(M + N * Derivative(y, x), 0, evaluate=False)]))
 
     m_int_x = integrate(M, x)
     h_diff = N - integrate(My, x)
     h = integrate(h_diff, y)
     result = Eq(m_int_x + h, c, evaluate=False)
     result_simplified = Eq(simplify(m_int_x + h), c, evaluate=False)
-    procedure.extend([('\\text{Determine if the equation is exact,}', [Eq(
-        m, M, evaluate=False), Eq(n, N, evaluate=False), Eq(my, My, evaluate=False), Eq(nx, Nx, evaluate=False)]), ('\\text{The equation is already exact,}', [Eq(My, Nx, evaluate=False)]), ('\\text{Integrate $M$ with respect to $x$,}', [m_int_x]), ('\\text{Derive $h(y)$,}', [Eq(Derivative(h_symbol, y), h_diff, evaluate=False), Eq(h_symbol, h)]), ('\\text{The solution is,}', [result])])
+    procedure.extend([
+        ('\\text{Determine if the equation is exact,}', [
+            Eq(m, M, evaluate=False),
+            Eq(n, N, evaluate=False),
+            Eq(my, My, evaluate=False),
+            Eq(nx, Nx, evaluate=False)
+        ]),
+
+        ('\\text{The equation is exact,}',
+         [Eq(My, Nx, evaluate=False)]),
+
+        ('\\text{Integrate $M$ with respect to $x$,}', [m_int_x]),
+
+        ('\\text{Derive $h(y)$,}', [
+            Eq(Derivative(h_symbol, y), h_diff, evaluate=False), Eq(h_symbol, h)
+        ]),
+
+        ('\\text{The solution is,}', [result])
+
+    ])
 
     return result_simplified, procedure
     pass
