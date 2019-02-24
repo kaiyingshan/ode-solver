@@ -1,14 +1,15 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine
 from sympy.solvers.ode import constantsimp, constant_renumber
 import sympy.solvers.ode
 from typing import Union, List, Tuple, Dict
+from sympy.abc import mu
 
 Number = Union[int, float]
 Procedure = List[Tuple[str, List[Symbol]]]
 
 __all__ = [
-    "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general", "display_procedure"
+    "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact"
 ]
 
 
@@ -24,23 +25,118 @@ def display_procedure(procedure: Procedure) -> None:
             display(Math(latex(x, ln_notation=True)))
 
 
-def first_order_separable():
-    pass
+def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')) -> Tuple[Symbol, Procedure]:
+    c = Symbol('c')
+
+    y_int = integrate(Y, y)
+    t_int = integrate(T, t)
+    procedure = [("\\text{Integrate y and t,}", [Eq(Integral(Y, y), Integral(
+        T, t), evaluate=False), Eq(y_int, t_int + c, evaluate=False)])]
+    # procedure = [("\\text{Integrate y}", [y_int]), ('\\text{Integrate t}', [t_int])]
+    if implicit:
+        result = Eq(y_int, t_int + c, evaluate=False)
+        return result, procedure
+    else:
+        result = solveset(Eq(y_int, t_int), y)
+        result_set = FiniteSet()
+        for i in result:
+            result_set = result_set + FiniteSet(simplify(i))
+        return result_set, procedure
 
 
-def first_order_linear():
-    pass
+def first_order_linear(p: Symbol, q: Symbol, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')) -> Tuple[Symbol, Procedure]:
+    t = Symbol('t')
+    y = Symbol('y')
+    c = Symbol('c')
+    p_int = integrate(p, t)
+    miu_t = exp(p_int)
+    miu_t_q_t = q * miu_t
+    p_int_exp_q_int = integrate(miu_t_q_t, t) + c
+    result = p_int_exp_q_int / miu_t
+    result_simplified = simplify(result)
+    procedure = [('\\text{Calculate the integrating factor}', [Eq(Integral(p, t), p_int, evaluate=False), Eq(mu, miu_t, evaluate=False)]), ('\\text{Multiply the integrating factor with both sides of the equation}', [
+        Eq((Derivative(y, t) + y * p) * miu_t, q * miu_t, evaluate=False)]), ('\\text{Integrate both sides of the equation}', [Eq(y * miu_t, p_int_exp_q_int, evaluate=False)]), ('\\text{Simplify the result}', [result])]
+    return result_simplified, procedure
 
 
-def first_order_homogeneous():
-    pass
+def first_order_homogeneous(F: Symbol, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')):
+    from IPython.display import display
+    v, c = symbols('v c')
+
+    f_subs = F.subs(y / t, v)
+
+    f_subs = f_subs.subs(t / y, 1 / v)
+
+    logcombine(f_subs, force=True)
+
+    result_separable, p_separable = first_order_separable(
+        1 / (f_subs - v), 1 / t, y=v)
+    result = result_separable.subs(v, y / t)
+
+    procedure = [('\\text{Substitute $\\frac{y}{t}$ with $v$}', [Eq(Derivative(y, t), F, evaluate=False), Eq(v + t * Derivative(v, t), f_subs, evaluate=False)]),
+                 ('\\text{Simplify,}', [Eq(Derivative(v, t), (f_subs - v) / t, evaluate=False)]), ('\\text{Solve the separable differential equation}', [])]
+    procedure.extend(p_separable)
+    procedure.append(('\\text{Replace v with $\\frac{y}{t}$}', [result]))
+    return result, procedure
 
 
-def first_order_autonomous():
-    pass
+def first_order_autonomous(F: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')):
+    c = Symbol('c')
+
+    f_int = integrate(1 / F, y)
+
+    result = Eq(f_int, t + c, evaluate=False)
+
+    procedure = [('\\text{Separate variables,}', [
+                  Eq(Integral(1 / F, y), Integral(1, t) + c, evaluate=False)])]
+
+    if implicit:
+        return result, procedure
+    else:
+        result = solveset(Eq(f_int, t + c), y)
+
+        for i in result:
+            result_solved = i
+        return Eq(y, result_solved, evaluate=False), procedure
 
 
-def first_order_exact():
+def first_order_exact(M: Symbol, N: Symbol, implicit=True, y: Symbol = Symbol('y'), x: Symbol = Symbol('x')):
+    c = Symbol('c')
+    m, n, my, nx, h_symbol = symbols('M N My Nx h')
+    My = diff(M, y)
+    Nx = diff(N, x)
+    exact = My.equals(Nx)
+    procedure = []
+
+    if not exact:
+        #integrating factor
+        miu_diff_x = Eq(Derivative(mu, x), (My - Nx) * mu / N)
+        miu_diff_x = simplify(miu_diff_x)
+
+        if y in miu_diff_x.free_symbols:
+            miu_diff_y = Eq(Derivative(mu, y), (Nx - My) * mu / M)
+            miu_diff_y = simplify(miu_diff_y)
+
+            if x in miu_diff_y.free_symbols:
+                print("fuck you")
+                
+            rhs = integrate(miu_diff_y, y)
+            miu = Eq(ln(mu), rhs + c)
+            pass
+
+        rhs = integrate(miu_diff_x, x)
+        miu = Eq(ln(mu), rhs + c)
+        pass
+
+    m_int_x = integrate(M, x)
+    h_diff = N - integrate(My, x)
+    h = integrate(h_diff, y)
+    result = Eq(m_int_x + h, c, evaluate=False)
+    result_simplified = Eq(simplify(m_int_x + h), c, evaluate=False)
+    procedure.extend([('\\text{Determine if the equation is exact,}', [Eq(
+        m, M, evaluate=False), Eq(n, N, evaluate=False), Eq(my, My, evaluate=False), Eq(nx, Nx, evaluate=False)]), ('\\text{The equation is already exact,}', [Eq(My, Nx, evaluate=False)]), ('\\text{Integrate $M$ with respect to $x$,}', [m_int_x]), ('\\text{Derive $h(y)$,}', [Eq(Derivative(h_symbol, y), h_diff, evaluate=False), Eq(h_symbol, h)]), ('\\text{The solution is,}', [result])])
+
+    return result_simplified, procedure
     pass
 
 
@@ -52,7 +148,7 @@ def first_order_riccati():
     pass
 
 
-def _derivative_repr(y: Function = Function('y', real=True), t: Symbol = "t", order: int = 0):
+def _derivative_repr(y: Function = Function('y', real = True), t: Symbol = "t", order: int = 0):
     return y(t).diff(t, order)
 
 
