@@ -1,6 +1,7 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine
-from sympy.solvers.ode import constantsimp, constant_renumber
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add
+from collections import defaultdict
+from sympy.solvers.ode import constantsimp, constant_renumber, _mexpand, _undetermined_coefficients_match
 import sympy.solvers.ode
 from typing import Union, List, Tuple, Dict
 from sympy.abc import mu
@@ -9,7 +10,7 @@ Number = Union[int, float]
 Procedure = List[Tuple[str, List[Symbol]]]
 
 __all__ = [
-    "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact"
+    "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients"
 ]
 
 
@@ -109,7 +110,7 @@ def first_order_exact(M: Symbol, N: Symbol, implicit=True, y: Symbol = Symbol('y
     procedure = []
 
     if not exact:
-        #integrating factor
+        # integrating factor
         miu_diff_x = Eq(Derivative(mu, x), (My - Nx) * mu / N)
         miu_diff_x = simplify(miu_diff_x)
 
@@ -119,7 +120,7 @@ def first_order_exact(M: Symbol, N: Symbol, implicit=True, y: Symbol = Symbol('y
 
             if x in miu_diff_y.free_symbols:
                 print("fuck you")
-                
+
             rhs = integrate(miu_diff_y, y)
             miu = Eq(ln(mu), rhs + c)
             pass
@@ -282,6 +283,102 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")
     ]
 
     return y, procedure
+
+
+def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], gt: Symbol, t: Symbol = Symbol('t')) -> Tuple[Symbol, Procedure]:
+    Y = Function('Y')(t)
+
+    coeffs = numbered_symbols('a', cls=Dummy)
+    coefflist = []
+
+    trialset = _undetermined_coefficients_match(gt, t)['trialset']
+
+    notneedset = set()
+
+    mult = 0
+    for i, sol in enumerate(gensols):
+        check = sol
+        if check in trialset:
+            # If an element of the trial function is already part of the
+            # homogeneous solution, we need to multiply by sufficient x to
+            # make it linearly independent.  We also don't need to bother
+            # checking for the coefficients on those elements, since we
+            # already know it will be 0.
+            while True:
+                if check*t**mult in trialset:
+                    mult += 1
+                else:
+                    break
+            trialset.add(check*t**mult)
+            notneedset.add(check)
+
+    newtrialset = trialset - notneedset
+
+    # newtrialset = trialset.copy()
+
+    # while True:
+    #     dependent = False
+    #     for trial in newtrialset:
+    #         if trial in gensols:
+    #             dependent = True
+    #             break
+    #     if not dependent:
+    #         break
+    #     newtrialset = set([t*trial for trial in trialset])
+
+    # trialset = trialset.union(newtrialset)
+
+    trialfunc = sympy.Number(0)
+    for i in newtrialset:
+        c = next(coeffs)
+        coefflist.append(c)
+        trialfunc += c*i
+
+    derivatives = []
+
+    eqs = 0
+    for order, coeff in enumerate(func_coeffs[::-1]):
+        deriv = simplify(coeff * trialfunc.diff(t, order))
+        derivatives.append(
+            Eq(Derivative(Y, t, order), deriv, evaluate=False))
+        eqs += deriv
+
+    coeffsdict = dict(list(zip(trialset, [0]*(len(trialset) + 1))))
+
+    eqs_lhs = eqs
+
+    eqs = _mexpand(simplify(eqs - gt).expand())
+
+    for i in Add.make_args(eqs):
+        s = separatevars(i, dict=True, symbols=[t])
+        coeffsdict[s[t]] += s['coeff']
+
+    coeffvals = solve(list(coeffsdict.values()), coefflist)
+
+    if not coeffvals:
+        print(
+            "Could not solve `%s` using the "
+            "method of undetermined coefficients "
+            "(unable to solve for coefficients)." % eqs)
+
+    psol = trialfunc.subs(coeffvals)
+
+    procedure = [
+        ("\\text{Find }Y(t) \\text{ that mimics the form of } g(t)",
+         [trialfunc]),
+        ("\\text{Compute successive derivatives of } Y(t)", derivatives),
+        ("\\text{Plug in the equation and equate coefficients}",
+         [Eq(eqs_lhs, gt, evaluate=False)] +
+         [Eq(a, 0, evaluate=False) for a in coeffsdict.values()]),
+        ("\\text{Solve for the undetermined coefficients}",
+         [Eq(k, v, evaluate=False)
+             for k, v in coeffvals.items()] if len(coeffvals) > 0 else []
+         ),
+        ("\\text{Substitute the coefficients to get the particular solution}", [
+         psol]),
+    ]
+
+    return psol, procedure
 
 
 def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
