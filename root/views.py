@@ -78,7 +78,7 @@ def ode(request: HttpRequest):
                 except ValueError:
                     pass
                 pass
-            # second order
+            pass
 
         return JsonResponse({"p": request.POST["p"]})
     else:
