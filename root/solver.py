@@ -129,7 +129,6 @@ def first_order_exact(M: Symbol, N: Symbol, implicit=True, y: Symbol = Symbol('y
 
                 miu_result = exp(rhs)
 
-
                 procedure.extend([
                     ('Calculate the integrating factor', [
                         Eq(Derivative(mu, y), (Nx - My) * mu / M, evaluate=False)
@@ -148,7 +147,7 @@ def first_order_exact(M: Symbol, N: Symbol, implicit=True, y: Symbol = Symbol('y
             procedure.extend([
                 ('\\text{Calculate the integrating factor}', [
                     Eq(Derivative(mu, x), (My - Nx) * mu / N, evaluate=False)
-                ]), 
+                ]),
                 ('\\text{The integrating factor is}', [miu_result])
             ])
 
@@ -388,10 +387,10 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
 
     eqs = 0
     for order, coeff in enumerate(func_coeffs[::-1]):
-        deriv = simplify(coeff * trialfunc.diff(t, order))
+        deriv = simplify(trialfunc.diff(t, order))
         derivatives.append(
             Eq(Derivative(Y, t, order), deriv, evaluate=False))
-        eqs += deriv
+        eqs += coeff * deriv
 
     coeffsdict = dict(list(zip(trialset, [0]*(len(trialset) + 1))))
 
