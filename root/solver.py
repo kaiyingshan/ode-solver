@@ -1,5 +1,5 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add, roots, Poly, re, im, conjugate, atan2
 from collections import defaultdict
 from sympy.solvers.ode import constantsimp, constant_renumber, _mexpand, _undetermined_coefficients_match
 import sympy.solvers.ode
@@ -10,7 +10,7 @@ Number = Union[int, float]
 Procedure = List[Tuple[str, List[Symbol]]]
 
 __all__ = [
-    "find_root", "sec_order_const_coeff", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients"
+    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients", "nth_order_const_coeff"
 ]
 
 
@@ -210,55 +210,74 @@ def find_root(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol]:
     return (-b + disc) / (2*a), (-b - disc) / (2*a)
 
 
-def sec_order_const_coeff(a: Number, b: Number, c: Number, t: Symbol = Symbol("t")) -> Tuple[Symbol, Symbol, Procedure]:
+def nth_order_const_coeff(*coeffs: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[List[Symbol], Procedure]:
     """
-    Solve the second order homogeneous differential equation with constant coefficients a, b and c
-    Return the pair of complementary solution.
+    Solve a nth order homogeneous linear diff eq with constant coefficients by solving the characteristic equation
+    Modified from sympy's source code
+    https://github.com/sympy/sympy/blob/master/sympy/solvers/ode.py
+
+    :param coeffs: the list of constant coefficients
+    :returns: [list of (linearly independent) solutions, procedure]
     """
 
-    r1, r2 = find_root(a, b, c)
+    # First, set up characteristic equation.
+    char_eq_r, r = sympy.S.Zero, Dummy('r')
 
-    if r1.is_number and r2.is_number:
-        real1, imag1 = r1.as_real_imag()
-        real2, imag2 = r2.as_real_imag()
+    for order, coeff in enumerate(coeffs[::-1]):
+        char_eq_r += coeff * r ** order
 
-        imag2 = abs(imag2)
+    char_eq = Poly(char_eq_r, r)
 
-        if imag1 == 0 and imag2 == 0:  # two real roots
-            y1 = exp(real1 * t)
-            if real1 == real2:  # repeated roots
-                y2 = t * exp(real2 * t)
+    # Can't just call roots because it doesn't return rootof for unsolveable
+    # polynomials.
+    char_eq_roots = roots(char_eq, multiple=True)
+
+    root_dict = defaultdict(int)
+
+    conjugate_roots = []
+    for root in char_eq_roots:
+        root_dict[root] += 1
+
+    sols = []
+    for root, mult in root_dict.items():
+        for i in range(mult):
+            reroot = re(root)
+            imroot = im(root)
+            if imroot.has(atan2) and reroot.has(atan2):
+                # Remove this condition when re and im stop returning
+                # circular atan2 usages.
+                sols.append(t**i * exp(root*t))
             else:
-                y2 = exp(real2 * t)
-        else:  # imaginary/complex roots
-            y1 = exp(real1 * t) * cos(imag1 * t)
-            y2 = exp(real2 * t) * sin(imag2 * t)
-    else:
-        if r1 == r2:
-            y1 = exp(r1 * t)
-            y2 = t * exp(r2 * t)
-        else:
-            y1 = exp(r1 * t)
-            y2 = exp(r2 * t)
+                if root in conjugate_roots:
+                    continue
+                if imroot == 0:
+                    sols.append(t**i*exp(reroot*t))
+                    continue
+                conjugate_roots.append(conjugate(root))
+                sols.append(t**i*exp(reroot*t) * sin(abs(imroot) * t))
+                sols.append(t**i*exp(reroot*t) * cos(imroot * t))
 
-    r = Symbol("r")
+    # collect roots for display
+    p_roots = []
+    count = 1
+    for root, mult in root_dict.items():
+        p_roots.append(Eq(Dummy('r_{}'.format(
+            ",".join([str(i) for i in range(count, count + mult)]))), root, evaluate=False))
+        count += mult
 
     procedure = [
-        ("\\text{Characteristic equation: }", [
-            Eq(a*r**2 + b*r + c, 0, evaluate=False)
-        ]),
-        ("\\text{Roots: }", [
-            Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2, evaluate=False)
-        ]),
-        ("\\text{Solutions: }", [
-            Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2, evaluate=False)
+        ('\\text{Characteristic equation:}',
+         [Eq(char_eq_r, 0, evaluate=False)]),
+        ('\\text{Roots: }', p_roots),
+        ('\\text{General Solution}', [
+            Eq(Dummy('y'), to_general(sols)[0], evaluate=False)
         ])
     ]
 
-    return y1, y2, procedure
+    return sols, procedure
 
 
-def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol, Procedure]:
+def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[List[Symbol], Procedure]:
     """
     Solve the second order homogeneous Euler's equation at^2 y'' + bty' + cy = 0
     Return the pair of solutions
@@ -291,7 +310,7 @@ def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol, Pr
         ("\\text{Solutions: }", [Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2)])
     ]
 
-    return y1, y2, procedure
+    return [y1, y2], procedure
 
 
 def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
@@ -335,6 +354,15 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")
 
 
 def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], gt: Symbol, t: Symbol = Symbol('t')) -> Tuple[Symbol, Procedure]:
+    """
+    Solve a linear diff eq with const coefficients using the method of undetermined coefficients
+    Modified from sympy's source code
+
+    :param gensols: a list of general solutions
+    :param func_coeffs: a list of constant coefficients (a1 yn + a2 yn-1 + ... + an-1 y' + an y = g(t)
+    :param gt: The RHS of the diff eq.
+    """
+
     Y = Function('Y')(t)
 
     coeffs = numbered_symbols('a', cls=Dummy)
@@ -362,8 +390,6 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
             notneedset.add(check)
 
     newtrialset = trialset - notneedset
-
-    # newtrialset = trialset.copy()
 
     # while True:
     #     dependent = False
@@ -433,6 +459,7 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
 def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
     Get the other solution of a second order linear differential equation y'' + p(t)y' + q(t)y = g(t) given a solution y1 that solves the homogeneous case by reduction of order.
+
     :returns: the other solution
     """
 
@@ -533,10 +560,6 @@ def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Determinant,
     return trigsimp(simplify(w.det()), deep=True, recursive=True), w
 
 
-def undetermined_coeffs(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
-    pass
-
-
 def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
     """
     Solve the particular solution of a nonhomogeneous second order differential equation given its two complementary solutions using variation of parameters
@@ -564,7 +587,7 @@ def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tupl
         integral = simplify(integrate(integrand, t)).expand()
         yp += y[i] * integral
 
-        integrals.append(Eq(Integral(integrand, t), integral))
+        integrals.append(Eq(Integral(integrand, t), integral, evaluate=False))
         Wdets.append(
             Eq(Symbol('W{}'.format(i+1)), Eq(Determinant(Wi), Wi_det), evaluate=False))
 
@@ -572,10 +595,13 @@ def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tupl
 
     procedure = [
         ('\\text{Compute Wronskian}', [
-         Eq(Symbol('W'), Eq(Determinant(w), W, evaluate=False), evaluate=False)]),
+            Eq(Dummy('W'), Eq(Determinant(w), W, evaluate=False), evaluate=False)
+        ]),
         ('\\text{Compute } W_i', Wdets),
-        ('\\text{Compute } \\frac{g(t)}{W(t)}',
-         [Eq(sympy.Mul(gt, sympy.Pow(W, -1, evaluate=False), evaluate=False), goW, evaluate=False)]),
+        ('\\text{Compute } \\frac{g(t)}{W(t)}', [
+            Eq(sympy.Mul(gt, sympy.Pow(W, -1, evaluate=False),
+                         evaluate=False), goW, evaluate=False)
+        ]),
         ('\\text{Compute } \\int \\frac{g(t)W_i(t)}{W(t)} dt', integrals),
         ('\\text{Compute the sum } \\sum_{i=1}^{k} y_i \\int \\frac{g(t)W_i(t)}{W(t)} dt', [
          Eq(yp, yps, evaluate=False)])
@@ -595,36 +621,38 @@ def to_std(*args: List[Symbol]) -> List[Symbol]:
     return [(q / pt) for q in args[1:]]
 
 
-def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = Symbol("t")) -> Tuple[Symbol, List[Symbol]]:
+def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = Symbol("t"), constant_prefix: str = "C") -> Tuple[Symbol, List[Symbol]]:
     """
     Given a list of complementary solutions and a particular solution, give the general solution by
 
     y(t) = C1*y1(t) + C2*y2(t) + ... + Cn*yn(t) + yp
     """
-    num = len(y)
 
-    # if len(consts) != num:
-    consts = [Symbol('C' + str(i + 1)) for i in range(num)]
+    const_iter = numbered_symbols(prefix=constant_prefix, start=1)
+    consts = []
 
     general = yp
-    for (y_, C) in zip(y, consts):
-        general += C * y_
+    for y_ in y:
+        const = next(const_iter)
+        general += const * y_
+        consts.append(const)
 
-    general = sympy.collect(general, t)
-
-    return constantsimp(general, set(consts)), consts
+    # general = collect(general, t)
+    # constant_renumber(constantsimp(general, consts), constant_prefix, 0, len(y)), consts
+    return general, consts
 
 
 def main():
-    y1, y2, _ = sec_order_const_coeff(1, 3, 2)
-    print(y1)
-    print(y2)
+    a, b, c, d = symbols('a b c d', real=True)
+    # nth_order_const_coeff(a, b, c, d)
+    print(nth_order_const_coeff(1, 4, 20, 64, 64, 0, 0))
 
     y1, y2, _ = sec_order_euler(1, 11, 25)
     print(y1)
     print(y2)
 
     y, consts = to_general([y1, y2])
+    print(y)
 
     print(solve_ivp(y, [(1, 8), (1, 5)]))
 
@@ -635,17 +663,14 @@ def main():
 
     print(Wronskian([t**2, t**3]))
 
-    y1, y2, _ = sec_order_const_coeff(1, -12, 36)
-    print(y1, y2)
-
     yp, _ = var_parameters([y1, y2],
                            7 / t * exp(6 * t)
                            )
-    print(to_general([y1, y2], yp))
+    print(to_general(y, yp))
 
-    y = Function('y')
-    print(sympy.dsolve(y(t).diff(t, 2) - 12 *
-                       y(t).diff(t) + 36 * y(t) - 7 / t * exp(6*t), y(t)))
+    # y = Function('y')
+    # print(sympy.dsolve(y(t).diff(t, 2) - 12 *
+    #                    y(t).diff(t) + 36 * y(t) - 7 / t * exp(6*t), y(t)))
 
 
 if __name__ == "__main__":
