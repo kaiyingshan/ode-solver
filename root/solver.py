@@ -1,5 +1,5 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add, roots, Poly, re, im, conjugate, atan2
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add, roots, Poly, re, im, conjugate, atan2, pprint
 from collections import defaultdict
 from sympy.solvers.ode import constantsimp, constant_renumber, _mexpand, _undetermined_coefficients_match
 import sympy.solvers.ode
@@ -10,7 +10,7 @@ Number = Union[int, float]
 Procedure = List[Tuple[str, List[Symbol]]]
 
 __all__ = [
-    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "var_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients", "nth_order_const_coeff"
+    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients", "nth_order_const_coeff"
 ]
 
 
@@ -23,7 +23,15 @@ def display_procedure(procedure: Procedure) -> None:
     for desc, p in procedure:
         display(Math(desc))
         for x in p:
-            display(Math(latex(x, ln_notation=True)))
+            display(Math(latex(x, ln_notation=True, long_frac_ratio=5)))
+
+
+def display_terminal(procedure: Procedure):
+    for desc, p in procedure:
+        print(desc)
+        for x in p:
+            pprint(x)
+            print()
 
 
 def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')) -> Tuple[Symbol, Procedure]:
@@ -198,7 +206,7 @@ def first_order_riccati():
     pass
 
 
-def _derivative_repr(y: Function = Function('y', real = True), t: Symbol = "t", order: int = 0):
+def _derivative_repr(y: Function = Function('y', real=True), t: Symbol = "t", order: int = 0):
     return y(t).diff(t, order)
 
 
@@ -440,7 +448,7 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
 
     procedure = [
         ("\\text{Find }Y(t) \\text{ that mimics the form of } g(t)",
-         [trialfunc]),
+         [Eq(Y, trialfunc, evaluate=False)]),
         ("\\text{Compute successive derivatives of } Y(t)", derivatives),
         ("\\text{Plug in the equation and equate coefficients}",
          [Eq(eqs_lhs, gt, evaluate=False)] +
@@ -450,7 +458,7 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
              for k, v in coeffvals.items()] if len(coeffvals) > 0 else []
          ),
         ("\\text{Substitute the coefficients to get the particular solution}", [
-         psol]),
+         Eq(Dummy('y_p'), psol, evaluate=False)]),
     ]
 
     return psol, procedure
@@ -560,7 +568,7 @@ def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Determinant,
     return trigsimp(simplify(w.det()), deep=True, recursive=True), w
 
 
-def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
+def variation_of_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t"), do_integral=True) -> Tuple[Symbol, Procedure]:
     """
     Solve the particular solution of a nonhomogeneous second order differential equation given its two complementary solutions using variation of parameters
 
@@ -581,13 +589,19 @@ def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tupl
     for i in range(len(y)):
         Wi = w.copy()
         Wi[:, i] = col.copy()
-        Wi_det = simplify(Wi.det())
 
-        integrand = simplify(Wi_det * goW).expand()
-        integral = simplify(integrate(integrand, t)).expand()
+        # reduce cos^2 t + sin^2 t to 1
+        Wi_det = trigsimp(simplify(Wi.det()), deep=True, recursive=True)
+
+        integrand = Wi_det * goW
+        integral = integrate(
+            integrand, t) if do_integral else Integral(integrand, t)
         yp += y[i] * integral
 
-        integrals.append(Eq(Integral(integrand, t), integral, evaluate=False))
+        if do_integral:
+            integrals.append(
+                Eq(Integral(integrand, t), integral, evaluate=False))
+
         Wdets.append(
             Eq(Symbol('W{}'.format(i+1)), Eq(Determinant(Wi), Wi_det), evaluate=False))
 
@@ -602,7 +616,8 @@ def var_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")) -> Tupl
             Eq(sympy.Mul(gt, sympy.Pow(W, -1, evaluate=False),
                          evaluate=False), goW, evaluate=False)
         ]),
-        ('\\text{Compute } \\int \\frac{g(t)W_i(t)}{W(t)} dt', integrals),
+        ('\\text{Compute } \\int \\frac{g(t)W_i(t)}{W(t)} dt', integrals) if do_integral else (
+            '\\text{Not evaluating integrals...}', []),
         ('\\text{Compute the sum } \\sum_{i=1}^{k} y_i \\int \\frac{g(t)W_i(t)}{W(t)} dt', [
          Eq(yp, yps, evaluate=False)])
     ]
@@ -643,30 +658,31 @@ def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = Symbol("t"), constan
 
 
 def main():
+    from sympy import init_printing, pprint
+    init_printing(use_latex=True)
+
     a, b, c, d = symbols('a b c d', real=True)
     # nth_order_const_coeff(a, b, c, d)
-    print(nth_order_const_coeff(1, 4, 20, 64, 64, 0, 0))
+    sols, _ = nth_order_const_coeff(1, 4, 20, 64, 64, 0, 0)
+    pprint(sols)
 
-    y1, y2, _ = sec_order_euler(1, 11, 25)
-    print(y1)
-    print(y2)
+    sols, _ = sec_order_euler(1, 11, 25)
+    pprint(sols)
 
-    y, consts = to_general([y1, y2])
-    print(y)
+    y, consts = to_general(sols)
+    pprint(y)
 
-    print(solve_ivp(y, [(1, 8), (1, 5)]))
+    sol, p = solve_ivp(y, [(1, 8), (1, 5)])
+    pprint(sol)
 
     t = Symbol("t")
-    print(red_order(4 / t, 3 / t, t**(-2), 0, t))
+    sol, p = red_order(4 / t, *to_std(t**2, 3*t, 1), 0, t)
+    pprint(sol)
 
-    print(red_order(4 / t, *to_std(t**2, 3*t, 1), 0, t))
+    pprint(Wronskian([t**2, t**3]))
 
-    print(Wronskian([t**2, t**3]))
-
-    yp, _ = var_parameters([y1, y2],
-                           7 / t * exp(6 * t)
-                           )
-    print(to_general(y, yp))
+    yp, _ = variation_of_parameters(sols, ln(t) * exp(6 * t))
+    pprint(to_general(sols, yp))
 
     # y = Function('y')
     # print(sympy.dsolve(y(t).diff(t, 2) - 12 *
