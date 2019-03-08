@@ -8,9 +8,10 @@ from sympy.abc import mu
 
 Number = Union[int, float]
 Procedure = List[Tuple[str, List[Symbol]]]
+t = Symbol('t', real=True)
 
 __all__ = [
-    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients", "nth_order_const_coeff"
+    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients", "nth_order_const_coeff", "t"
 ]
 
 
@@ -26,6 +27,11 @@ def display_procedure(procedure: Procedure) -> None:
             display(Math(latex(x, ln_notation=True, long_frac_ratio=5)))
 
 
+def display(sym):
+    from IPython.display import display, Math
+    display(Math(latex(sym, ln_notation=True, long_frac_ratio=5)))
+
+
 def display_terminal(procedure: Procedure):
     for desc, p in procedure:
         print(desc)
@@ -34,7 +40,7 @@ def display_terminal(procedure: Procedure):
             print()
 
 
-def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')) -> Tuple[Symbol, Procedure]:
+def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = t) -> Tuple[Symbol, Procedure]:
     c = Symbol('c')
 
     y_int = integrate(Y, y)
@@ -53,8 +59,7 @@ def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbo
         return result_set, procedure
 
 
-def first_order_linear(p: Symbol, q: Symbol, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')) -> Tuple[Symbol, Procedure]:
-    t = Symbol('t')
+def first_order_linear(p: Symbol, q: Symbol, y: Symbol = Symbol('y'), t: Symbol = t) -> Tuple[Symbol, Procedure]:
     y = Symbol('y')
     c = Symbol('c')
     p_int = integrate(p, t)
@@ -68,7 +73,7 @@ def first_order_linear(p: Symbol, q: Symbol, y: Symbol = Symbol('y'), t: Symbol 
     return result_simplified, procedure
 
 
-def first_order_homogeneous(F: Symbol, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')):
+def first_order_homogeneous(F: Symbol, y: Symbol = Symbol('y'), t: Symbol = t):
     from IPython.display import display
     v, c = symbols('v c')
 
@@ -89,7 +94,7 @@ def first_order_homogeneous(F: Symbol, y: Symbol = Symbol('y'), t: Symbol = Symb
     return result, procedure
 
 
-def first_order_autonomous(F: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = Symbol('t')):
+def first_order_autonomous(F: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = t):
     c = Symbol('c')
 
     f_int = integrate(1 / F, y)
@@ -218,7 +223,7 @@ def find_root(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol]:
     return (-b + disc) / (2*a), (-b - disc) / (2*a)
 
 
-def nth_order_const_coeff(*coeffs: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[List[Symbol], Procedure]:
+def nth_order_const_coeff(*coeffs: List[Symbol], t: Symbol = t) -> Tuple[List[Symbol], Procedure]:
     """
     Solve a nth order homogeneous linear diff eq with constant coefficients by solving the characteristic equation
     Modified from sympy's source code
@@ -298,7 +303,7 @@ def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[List[Symbol], Proc
 
     imag2 = abs(imag2)
 
-    t = Symbol("t")
+    t = t
 
     if imag1 == 0 and imag2 == 0:  # two real roots
         y1 = t ** real1
@@ -321,7 +326,7 @@ def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[List[Symbol], Proc
     return [y1, y2], procedure
 
 
-def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
+def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = t) -> Tuple[Symbol, Procedure]:
     """
     Solve the initial value problem given the general solution y
 
@@ -361,7 +366,7 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = Symbol("t")
     return y, procedure
 
 
-def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], gt: Symbol, t: Symbol = Symbol('t')) -> Tuple[Symbol, Procedure]:
+def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], gt: Symbol, t: Symbol = t) -> Tuple[Symbol, Procedure]:
     """
     Solve a linear diff eq with const coefficients using the method of undetermined coefficients
     Modified from sympy's source code
@@ -450,7 +455,7 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
         ("\\text{Find }Y(t) \\text{ that mimics the form of } g(t)",
          [Eq(Y, trialfunc, evaluate=False)]),
         ("\\text{Compute successive derivatives of } Y(t)", derivatives),
-        ("\\text{Plug in the equation and equate coefficients}",
+        ("\\text{Plug into the LHS and equate coefficients}",
          [Eq(eqs_lhs, gt, evaluate=False)] +
          [Eq(a, 0, evaluate=False) for a in coeffsdict.values()]),
         ("\\text{Solve for the undetermined coefficients}",
@@ -464,7 +469,7 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
     return psol, procedure
 
 
-def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol("t")) -> Tuple[Symbol, Procedure]:
+def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = t) -> Tuple[Symbol, Procedure]:
     """
     Get the other solution of a second order linear differential equation y'' + p(t)y' + q(t)y = g(t) given a solution y1 that solves the homogeneous case by reduction of order.
 
@@ -485,7 +490,8 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
     expr = (y2pp + pt * y2p + y2 * qt).expand().collect(v)
 
     # note that y1 should solve the homogeneous case
-    simp_expr = expr.subs(y1pp + pt*y1p + qt*y1, 0)
+    simp_expr = expr.subs(y1pp + pt*y1p + qt*y1,
+                          0).replace(y1pp + pt*y1p + qt*y1, 0)
 
     # now we should have an equation with only v'' and v'
     # use w = v'
@@ -521,8 +527,12 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
             Eq(Derivative(y2, t, 1), y2p, evaluate=False),
             Eq(Derivative(y2, t, 2), y2pp, evaluate=False)
         ]),
-        ("\\text{Plug in the derivatives and simplify LHS of } y'' + p(t)y' + q(t)y = g(t) \\\\v(t) \\text{ terms should cancel out}", [
-            Eq(Eq(expr, simp_expr, evaluate=False), gt, evaluate=False)
+        ("\\text{Plug in the derivatives and simplify LHS of } y'' + p(t)y' + q(t)y = g(t)", [
+            Eq(Eq(y2pp + pt * y2p + y2 * qt, expr,
+                  evaluate=False), gt, evaluate=False)
+        ]),
+        ("\\text{Given that } y_1(t) \\text{ satisfies the homogeneous equation, } y_1''(t) + p(t)y_1' + q(t)y_1 = 0", [
+            Eq(simp_expr, gt, evaluate=False)
         ]),
         ("\\text{Let } w(t) = v'(t) \\text{ and convert to standard form}", [
             Eq(w_expr, gt, evaluate=False),  Eq(p, q, evaluate=False)
@@ -535,7 +545,10 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
         ]),
         ('\\text{Solve for y2: } y_2 = v(t) y_1(t)', [
             Eq(Symbol('y2'), Eq(sol, sol_simp, evaluate=False), evaluate=False)
-        ])
+        ]),
+        # ('\\text{2333}', [
+        #     simplify(y1pp + pt*y1p + qt*y1).expand(), expr.coeff(v)
+        # ])
     ]
 
     return sol_simp, procedure
@@ -554,7 +567,7 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = Symbol
     # return constantsimp(v * y1, {C1, C2})
 
 
-def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Determinant, Matrix]:
+def Wronskian(args: List[Symbol], t: Symbol = t) -> Tuple[Determinant, Matrix]:
     """
     :param args: List of complementary solutions [y1, y2, ..., yn]
 
@@ -568,7 +581,7 @@ def Wronskian(args: List[Symbol], t: Symbol = Symbol("t")) -> Tuple[Determinant,
     return trigsimp(simplify(w.det()), deep=True, recursive=True), w
 
 
-def variation_of_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t"), do_integral=True) -> Tuple[Symbol, Procedure]:
+def variation_of_parameters(y: List[Symbol], gt: Symbol, t: Symbol = t, do_integral=True) -> Tuple[Symbol, Procedure]:
     """
     Solve the particular solution of a nonhomogeneous second order differential equation given its two complementary solutions using variation of parameters
 
@@ -608,11 +621,11 @@ def variation_of_parameters(y: List[Symbol], gt: Symbol, t: Symbol = Symbol("t")
     yps = simplify(yp)
 
     procedure = [
-        ('\\text{Compute Wronskian}', [
+        ('\\text{Compute the Wronskian determinant}', [
             Eq(Dummy('W'), Eq(Determinant(w), W, evaluate=False), evaluate=False)
         ]),
         ('\\text{Compute } W_i', Wdets),
-        ('\\text{Compute } \\frac{g(t)}{W(t)}', [
+        ('\\text{Calculate and simplify} \\frac{g(t)}{W(t)}', [
             Eq(sympy.Mul(gt, sympy.Pow(W, -1, evaluate=False),
                          evaluate=False), goW, evaluate=False)
         ]),
@@ -636,7 +649,7 @@ def to_std(*args: List[Symbol]) -> List[Symbol]:
     return [(q / pt) for q in args[1:]]
 
 
-def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = Symbol("t"), constant_prefix: str = "C") -> Tuple[Symbol, List[Symbol]]:
+def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = t, constant_prefix: str = "C") -> Tuple[Symbol, List[Symbol]]:
     """
     Given a list of complementary solutions and a particular solution, give the general solution by
 
@@ -652,9 +665,8 @@ def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = Symbol("t"), constan
         general += const * y_
         consts.append(const)
 
-    # general = collect(general, t)
-    # constant_renumber(constantsimp(general, consts), constant_prefix, 0, len(y)), consts
-    return general, consts
+    # constant_renumber(, constant_prefix, 0, len(y)), consts
+    return constantsimp(general.collect(t), consts), consts
 
 
 def main():
@@ -675,7 +687,6 @@ def main():
     sol, p = solve_ivp(y, [(1, 8), (1, 5)])
     pprint(sol)
 
-    t = Symbol("t")
     sol, p = red_order(4 / t, *to_std(t**2, 3*t, 1), 0, t)
     pprint(sol)
 
