@@ -1,18 +1,10 @@
-from django.shortcuts import render
-from django.http import HttpResponse, HttpRequest, JsonResponse
-from django.template import loader
 from . import solver
 import sympy
 from sympy import Symbol, latex
 from typing import List, Union, Tuple
 
-# Create your views here.
-
-
-def index(request):
-    template = loader.get_template('index.html')
-    context = {}
-    return HttpResponse(template.render(context, request))
+from flask import Flask
+app = Flask(__name__)
 
 
 def procedure_to_dict(procedure: solver.Procedure):
@@ -37,8 +29,8 @@ def parseNum(args: List[str]) -> Tuple[bool, List[Union[solver.Number, Symbol]]]
 
     return const_coeff, parsed
 
-
-def ode(request: HttpRequest):
+@app.route("/ode/", method=['POST', 'GET'])
+def ode():
     if request.method == "POST":
 
         p: str = request.POST["p"]
