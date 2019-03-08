@@ -1,5 +1,5 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add, roots, Poly, re, im, conjugate, atan2, pprint
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add, roots, Poly, re, im, conjugate, atan2, pprint, pretty
 from collections import defaultdict
 from sympy.solvers.ode import constantsimp, constant_renumber, _mexpand, _undetermined_coefficients_match
 import sympy.solvers.ode
@@ -7,37 +7,188 @@ from typing import Union, List, Tuple, Dict
 from sympy.abc import mu
 
 Number = Union[int, float]
-Procedure = List[Tuple[str, List[Symbol]]]
+# Procedure = List[Tuple[str, List[Symbol]]]
 t = Symbol('t', real=True)
 
 __all__ = [
-    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "display_procedure", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients", "nth_order_const_coeff", "t"
+    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients", "nth_order_const_coeff", "t"
 ]
 
 
-def display_procedure(procedure: Procedure) -> None:
-    """
-    Pretty print the procedure in IPython (Jupyter) notebook
-    """
-    from IPython.display import display, Math
+class Content:
+    def __init__(self, content, *args, **kwargs):
+        self.content = content
+        self.options = kwargs
 
-    for desc, p in procedure:
-        display(Math(desc))
-        for x in p:
-            display(Math(latex(x, ln_notation=True, long_frac_ratio=5)))
+    def latex(self):
+        raise NotImplementedError()
+
+    def plain(self):
+        raise NotImplementedError()
+
+    def latex_nl(self, nl=True):
+        return ("\\\\[{}pt]".format(self.options.get('vspace', 8)) if nl else "")
+
+
+class Procedure:
+
+    @staticmethod
+    def is_notebook():
+        try:
+            from IPython import get_ipython
+            shell = get_ipython().__class__.__name__
+            if shell == 'ZMQInteractiveShell':
+                return True   # Jupyter notebook or qtconsole
+            elif shell == 'TerminalInteractiveShell':
+                return False  # Terminal running IPython
+            else:
+                return False  # Other type (?)
+        except:
+            return False      # Probably standard Python interpreter
+
+    class Text(Content):
+        def __init__(self, content, *args, **kwargs):
+            options = {
+                'nl': kwargs.get('nl', False)
+            }
+            return super().__init__(content, *args, **options)
+
+        def latex(self):
+            # + self.latex_nl(self.options.get('nl', False))
+            return "\\text{" + self.content + "}"
+
+        def plain(self):
+            return self.content
+
+    class Equation(Content):
+        def __init__(self, content, *args, **kwargs):
+            options = {
+                'nl': kwargs.get('nl', True),
+                'ln_notation': kwargs.get('ln_notation', True),
+                'long_frac_ratio': kwargs.get('long_frac_ratio', 5),
+            }
+            return super().__init__(content, *args, **options)
+
+        def latex(self):
+            # + self.latex_nl(self.options.get('nl', True))
+            return latex(self.content, ln_notation=self.options['ln_notation'],
+                         long_frac_ratio=self.options['long_frac_ratio'])
+
+        def plain(self):
+            return pretty(self.content)
+
+    class EquArray(Content):
+        def __init__(self, content, *args, **kwargs):
+            options = {
+                'nl': kwargs.get('nl', True),
+                'ln_notation': kwargs.get('ln_notation', True),
+                'long_frac_ratio': kwargs.get('long_frac_ratio', 5),
+            }
+            return super().__init__(content, *args, **options)
+
+        def latex(self):
+            tex = "\\left\{ \\begin{array}{ll}"
+            for item in self.content:
+                tex += latex(item, ln_notation=self.options['ln_notation'],
+                             long_frac_ratio=self.options['long_frac_ratio']) + "\\\\"
+            # + self.latex_nl(self.options.get('nl', True))
+            tex += "\\end{array} \\right."
+            return tex
+
+        def plain(self):
+            return pretty(self.content)
+
+    class EquList(Content):
+        def __init__(self, content, *args, **kwargs):
+            options = {
+                'nl': kwargs.get('nl', True),
+                'ln_notation': kwargs.get('ln_notation', True),
+                'long_frac_ratio': kwargs.get('long_frac_ratio', 5),
+            }
+            return super().__init__(content, *args, **options)
+
+        def latex(self):
+            tex = "\\begin{align*}"
+            for item in self.content:
+                tex += "&" + latex(item, ln_notation=self.options['ln_notation'],
+                                   long_frac_ratio=self.options['long_frac_ratio']) + "\\\\"
+            return tex + "\\end{align*}"
+
+        def plain(self):
+            return pretty(self.content)
+
+    class LaTeX(Content):
+        def __init__(self, content, *args, **kwargs):
+            options = {
+                'nl': kwargs.get('nl', False)
+            }
+            return super().__init__(content, *args, **options)
+
+        def latex(self):
+            # + self.latex_nl(self.options.get('nl', False))
+            return self.content
+
+        def plain(self):
+            # + ("\n" if self.options.get('nl', False) else "")
+            return self.content
+
+    def __init__(self):
+        self.content = []
+
+    def text(self, text, **kwargs):
+        self.content.append(self.Text(text, **kwargs))
+        return self
+
+    def latex(self, tex, **kwargs):
+        self.content.append(self.LaTeX(tex, **kwargs))
+        return self
+
+    def eq(self, eq, **kwargs):
+        self.content.append(self.Equation(eq, **kwargs))
+        return self
+
+    def equarr(self, eqs, **kwargs):
+        self.content.append(self.EquArray(eqs, **kwargs))
+        return self
+
+    def equlist(self, eqs, **kwargs):
+        self.content.append(self.EquList(eqs, **kwargs))
+        return self
+
+    def display_ipython(self):
+        from IPython.display import display, Math
+        tex = ""
+        for item in self.content:
+            tex += item.latex()
+            if item.options['nl']:
+                display(Math(tex))
+                tex = ""
+        if tex != "":
+            display(Math(tex))
+
+    def display_terminal(self):
+        for item in self.content:
+            if type(item) == self.Text or type(item) == self.LaTeX:
+                print(item.content, end="")
+            elif type(item) == self.EquList or type(item) == self.EquArray:
+                for eq in item.content:
+                    pprint(eq)
+                    print()
+            elif type(item) == self.Equation:
+                pprint(item.content)
+            if item.options['nl']:
+                print("\n")
+
+    def display(self):
+        if self.is_notebook():
+            self.display_ipython()
+        else:
+            self.display_terminal()
 
 
 def display(sym):
     from IPython.display import display, Math
     display(Math(latex(sym, ln_notation=True, long_frac_ratio=5)))
-
-
-def display_terminal(procedure: Procedure):
-    for desc, p in procedure:
-        print(desc)
-        for x in p:
-            pprint(x)
-            print()
 
 
 def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = t) -> Tuple[Symbol, Procedure]:
@@ -278,19 +429,19 @@ def nth_order_const_coeff(*coeffs: List[Symbol], t: Symbol = t) -> Tuple[List[Sy
             ",".join([str(i) for i in range(count, count + mult)]))), root, evaluate=False))
         count += mult
 
-    procedure = [
-        ('\\text{Characteristic equation:}',
-         [Eq(char_eq_r, 0, evaluate=False)]),
-        ('\\text{Roots: }', p_roots),
-        ('\\text{General Solution}', [
-            Eq(Dummy('y'), to_general(sols)[0], evaluate=False)
-        ])
-    ]
+    procedure = Procedure()
+    procedure\
+        .text('Characteristic equation: ', nl=True)\
+        .eq(Eq(char_eq_r, 0, evaluate=False))\
+        .text('Roots: ')\
+        .equarr(p_roots)\
+        .text('General Solution: ', nl=True)\
+        .eq(Eq(Dummy('y'), to_general(sols)[0], evaluate=False))
 
     return sols, procedure
 
 
-def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[List[Symbol], Procedure]:
+def sec_order_euler(a: Number, b: Number, c: Number, t: Symbol = t) -> Tuple[List[Symbol], Procedure]:
     """
     Solve the second order homogeneous Euler's equation at^2 y'' + bty' + cy = 0
     Return the pair of solutions
@@ -303,8 +454,6 @@ def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[List[Symbol], Proc
 
     imag2 = abs(imag2)
 
-    t = t
-
     if imag1 == 0 and imag2 == 0:  # two real roots
         y1 = t ** real1
         if real1 == real2:  # repeated roots
@@ -315,13 +464,16 @@ def sec_order_euler(a: Number, b: Number, c: Number) -> Tuple[List[Symbol], Proc
         y1 = (t ** (real1)) * cos(imag1 * ln(t))
         y2 = (t ** (real2)) * sin(imag2 * ln(t))
 
-    r = Symbol("r")
-    procedure = [
-        ("\\text{Characteristic equation: }",
-         [Eq(a*r**2 + (b - a)*r + c, 0)]),
-        ("\\text{Roots: }", [Eq(Symbol("r1"), r1), Eq(Symbol("r2"), r2)]),
-        ("\\text{Solutions: }", [Eq(Symbol('y1'), y1), Eq(Symbol('y2'), y2)])
-    ]
+    r = Dummy("r")
+
+    procedure = Procedure()
+    procedure\
+        .text('Characteristic equation: ')\
+        .eq(Eq(a*r**2 + (b - a)*r + c, 0))\
+        .text('Roots: ')\
+        .equarr([Eq(Dummy("r1"), r1), Eq(Dummy("r2"), r2)])\
+        .text('General solution: ')\
+        .eq(Eq(Dummy('y'), to_general([y1, y2])[0], evaluate=False))
 
     return [y1, y2], procedure
 
@@ -356,12 +508,16 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = t) -> Tuple
     for k in sol:
         y = y.subs(k, sol[k])
 
-    procedure = [
-        ('\\text{Find successive derivatives of } y(t)', derivatives),
-        ('\\text{Substitute the initial conditions}', equations),
-        ('\\text{Solve for the arbitrary constants}', [sol]),
-        ('\\text{Substitute the solved constants into } y(t)', [y])
-    ]
+    procedure = Procedure()
+    procedure\
+        .text('Find successive derivatives of ').latex('y(t)', nl=True)\
+        .equlist(derivatives)\
+        .text('Substitute the initial conditions', nl=True)\
+        .equarr(equations)\
+        .text('Solve for the arbitrary constants', nl=True)\
+        .equarr([Eq(k, v, evaluate=False) for k, v in sol.items()])\
+        .text('Substitute the solved constants into ').latex('y(t)')\
+        .eq(Eq(Dummy('y'), y, evaluate=False))
 
     return y, procedure
 
@@ -378,7 +534,7 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
 
     Y = Function('Y')(t)
 
-    coeffs = numbered_symbols('a', cls=Dummy)
+    coeffs = numbered_symbols('A', cls=Dummy)
     coefflist = []
 
     trialset = _undetermined_coefficients_match(gt, t)['trialset']
@@ -451,20 +607,21 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
 
     psol = trialfunc.subs(coeffvals)
 
-    procedure = [
-        ("\\text{Find }Y(t) \\text{ that mimics the form of } g(t)",
-         [Eq(Y, trialfunc, evaluate=False)]),
-        ("\\text{Compute successive derivatives of } Y(t)", derivatives),
-        ("\\text{Plug into the LHS and equate coefficients}",
-         [Eq(eqs_lhs, gt, evaluate=False)] +
-         [Eq(a, 0, evaluate=False) for a in coeffsdict.values()]),
-        ("\\text{Solve for the undetermined coefficients}",
-         [Eq(k, v, evaluate=False)
-             for k, v in coeffvals.items()] if len(coeffvals) > 0 else []
-         ),
-        ("\\text{Substitute the coefficients to get the particular solution}", [
-         Eq(Dummy('y_p'), psol, evaluate=False)]),
-    ]
+    procedure = Procedure()
+    procedure\
+        .text('Find ').latex('Y(t)').text(' that mimics the form of ').latex('g(t)', nl=True)\
+        .eq(Eq(Y, trialfunc, evaluate=False))\
+        .text('Compute successive derivatives of ').latex('Y(t)', nl=True)\
+        .equlist(derivatives)\
+        .text('Plug the derivatives into the LHS and equate coefficients', nl=True)\
+        .equlist([Eq(eqs_lhs, gt, evaluate=False),
+                  Eq(simplify(eqs_lhs).expand().collect(t), gt, evaluate=False)])\
+        .equarr([Eq(a, 0, evaluate=False) for a in coeffsdict.values()])\
+        .text('Solve for the undetermined coefficients', nl=True)\
+        .equarr([Eq(k, v, evaluate=False)
+                 for k, v in coeffvals.items() if k != 0] if len(coeffvals) > 0 else [])\
+        .text('Substitute the coefficients to get the particular solution', nl=True)\
+        .eq(Eq(Dummy('y_p'), psol, evaluate=False))
 
     return psol, procedure
 
@@ -519,37 +676,27 @@ def red_order(y1: Symbol, pt: Symbol, qt: Symbol, gt: Symbol, t: Symbol = t) -> 
     sol = (y1 * v_sol).expand()
     sol_simp = constantsimp(sol, {C1, C2})
 
-    procedure = [
-        ('\\text{Solution }y_2 \\text{ takes the form } y_2 = v(t)y_1', [
-            Eq(Symbol('y2'), y2, evaluate=False)
-        ]),
-        ('\\text{Calculate the derivatives}', [
+    procedure = Procedure()
+    procedure\
+        .text('Solution ').latex('y_2').text(' takes the form ').latex('y_2 = v(t)y_1', nl=True)\
+        .eq(Eq(Symbol('y2'), y2, evaluate=False))\
+        .text('Calculate the derivatives', nl=True)\
+        .equlist([
             Eq(Derivative(y2, t, 1), y2p, evaluate=False),
             Eq(Derivative(y2, t, 2), y2pp, evaluate=False)
-        ]),
-        ("\\text{Plug in the derivatives and simplify LHS of } y'' + p(t)y' + q(t)y = g(t)", [
-            Eq(Eq(y2pp + pt * y2p + y2 * qt, expr,
-                  evaluate=False), gt, evaluate=False)
-        ]),
-        ("\\text{Given that } y_1(t) \\text{ satisfies the homogeneous equation, } y_1''(t) + p(t)y_1' + q(t)y_1 = 0", [
-            Eq(simp_expr, gt, evaluate=False)
-        ]),
-        ("\\text{Let } w(t) = v'(t) \\text{ and convert to standard form}", [
-            Eq(w_expr, gt, evaluate=False),  Eq(p, q, evaluate=False)
-        ]),
-        ('\\text{Solve the first order linear differential equation in } w(t)', [
-            Eq(w, w_sol, evaluate=False)
-        ]),
-        ('\\text{Integrate } w(t) \\text{ to solve for} v(t)', [
-            Eq(Integral(w_sol, t), v_sol, evaluate=False)
-        ]),
-        ('\\text{Solve for y2: } y_2 = v(t) y_1(t)', [
-            Eq(Symbol('y2'), Eq(sol, sol_simp, evaluate=False), evaluate=False)
-        ]),
-        # ('\\text{2333}', [
-        #     simplify(y1pp + pt*y1p + qt*y1).expand(), expr.coeff(v)
-        # ])
-    ]
+        ])\
+        .text('Plug in the derivatives and simplify LHS of ').latex("y'' + p(t)y' + q(t)y = g(t)", nl=True)\
+        .equlist([Eq(y2pp + pt * y2p + y2 * qt, gt, evaluate=False),
+                  Eq(expr, gt, evaluate=False)])\
+        .text('Given that ').latex('y_1(t)').text(' satisfies the homogeneous equation ')\
+        .latex(" y_1''(t) + p(t)y_1' + q(t)y_1 = 0", nl=True)\
+        .eq(Eq(simp_expr, gt, evaluate=False))\
+        .text('Let ').latex("w(t) = v'(t)").text(' and convert to standard form', nl=True)\
+        .equlist([Eq(w_expr, gt, evaluate=False),  Eq(p, q, evaluate=False)])\
+        .text('Solve the first order linear differential equation in ').latex('w(t)', nl=True)\
+        .eq(Eq(w, w_sol, evaluate=False))\
+        .eq(Eq(Eq(Dummy('v(t)'), Integral(w_sol, t), evaluate=False), v_sol, evaluate=False))\
+        .eq(Eq(Symbol('y2'), Eq(sol, sol_simp, evaluate=False), evaluate=False))
 
     return sol_simp, procedure
     # y1p = diff(y1, "t")
@@ -606,34 +753,42 @@ def variation_of_parameters(y: List[Symbol], gt: Symbol, t: Symbol = t, do_integ
         # reduce cos^2 t + sin^2 t to 1
         Wi_det = trigsimp(simplify(Wi.det()), deep=True, recursive=True)
 
-        integrand = Wi_det * goW
+        integrand = (Wi_det * goW).expand()
         integral = integrate(
             integrand, t) if do_integral else Integral(integrand, t)
         yp += y[i] * integral
 
         if do_integral:
             integrals.append(
-                Eq(Integral(integrand, t), integral, evaluate=False))
+                Eq(Dummy('mu_{}'.format(i + 1)),
+                   Eq(Integral(integrand, t), integral, evaluate=False), evaluate=False)
+            )
+        else:
+            integrals.append(Eq(Dummy('mu_{}'.format(i)),
+                                Integral(integrand, t), evaluate=False))
 
         Wdets.append(
-            Eq(Symbol('W{}'.format(i+1)), Eq(Determinant(Wi), Wi_det), evaluate=False))
+            Eq(Symbol('W{}'.format(i+1)), Eq(Determinant(Wi), Wi_det, evaluate=False), evaluate=False))
 
-    yps = simplify(yp)
+    yps = logcombine(simplify(yp))
 
-    procedure = [
-        ('\\text{Compute the Wronskian determinant}', [
-            Eq(Dummy('W'), Eq(Determinant(w), W, evaluate=False), evaluate=False)
-        ]),
-        ('\\text{Compute } W_i', Wdets),
-        ('\\text{Calculate and simplify} \\frac{g(t)}{W(t)}', [
-            Eq(sympy.Mul(gt, sympy.Pow(W, -1, evaluate=False),
-                         evaluate=False), goW, evaluate=False)
-        ]),
-        ('\\text{Compute } \\int \\frac{g(t)W_i(t)}{W(t)} dt', integrals) if do_integral else (
-            '\\text{Not evaluating integrals...}', []),
-        ('\\text{Compute the sum } \\sum_{i=1}^{k} y_i \\int \\frac{g(t)W_i(t)}{W(t)} dt', [
-         Eq(yp, yps, evaluate=False)])
-    ]
+    procedure = Procedure()
+    procedure\
+        .text('Compute the Wronskian determinant', nl=True)\
+        .eq(Eq(Dummy('W'), Eq(Determinant(w), W, evaluate=False), evaluate=False))\
+        .text('Compute ').latex('W_i', nl=True)\
+        .equlist(Wdets)\
+        .text('Calculate and simplify ').latex('\\frac{g(t)}{W(t)}', nl=True)\
+        .eq(Eq(sympy.Mul(gt, sympy.Pow(W, -1, evaluate=False), evaluate=False), goW, evaluate=False))\
+        .text('Compute ').latex('\\mu_i = \\int \\frac{g(t)W_i(t)}{W(t)} dt', nl=True)\
+        .equlist(integrals)\
+        .text('Compute the sum ').latex('\\sum_{i=1}^{k} y_i \\int \\frac{g(t)W_i(t)}{W(t)} dt', nl=True)\
+        .equlist([
+            Eq(Dummy('y_p'), yp, evaluate=False),
+            Eq(Dummy('y_p'), yps, evaluate=False)
+        ])\
+        .text('Complementray + particular = general', nl=True)\
+        .eq(Eq(Dummy('y'), to_general(y, yps)[0], evaluate=False))
 
     return yps, procedure
 
@@ -662,11 +817,11 @@ def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = t, constant_prefix: 
     general = yp
     for y_ in y:
         const = next(const_iter)
-        general += const * y_
         consts.append(const)
+        general += const * y_
+        general = constantsimp(general.collect(y_), consts)
 
-    # constant_renumber(, constant_prefix, 0, len(y)), consts
-    return constantsimp(general.collect(t), consts), consts
+    return general, consts
 
 
 def main():
@@ -676,25 +831,19 @@ def main():
     a, b, c, d = symbols('a b c d', real=True)
     # nth_order_const_coeff(a, b, c, d)
     sols, _ = nth_order_const_coeff(1, 4, 20, 64, 64, 0, 0)
-    pprint(sols)
 
     sols, _ = sec_order_euler(1, 11, 25)
-    pprint(sols)
 
     y, consts = to_general(sols)
-    pprint(y)
 
     sol, p = solve_ivp(y, [(1, 8), (1, 5)])
-    pprint(sol)
+    p.display()
 
-    sol, p = red_order(4 / t, *to_std(t**2, 3*t, 1), 0, t)
-    pprint(sol)
+    sol, p = red_order(4 / t, *to_std(t**2, 3*t, 1), 0)
+    p.display()
 
-    pprint(Wronskian([t**2, t**3]))
-
-    yp, _ = variation_of_parameters(sols, ln(t) * exp(6 * t))
-    pprint(to_general(sols, yp))
-
+    yp, _ = variation_of_parameters(sols, ln(t))
+    _.display()
     # y = Function('y')
     # print(sympy.dsolve(y(t).diff(t, 2) - 12 *
     #                    y(t).diff(t) + 36 * y(t) - 7 / t * exp(6*t), y(t)))
