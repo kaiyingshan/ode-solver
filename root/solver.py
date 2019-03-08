@@ -1,9 +1,9 @@
 import sympy
-from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add, roots, Poly, re, im, conjugate, atan2, pprint, pretty
-from collections import defaultdict
+from sympy import Symbol, E, cos, sin, solve, exp, diff, integrate, sqrt, ln, Matrix, Function, Eq, Integral, Determinant, collect, simplify, latex, trigsimp, expand, Derivative, solveset, symbols, FiniteSet, logcombine, separatevars, numbered_symbols, Dummy, Add, roots, Poly, re, im, conjugate, atan2, pprint, pretty, RootOf, Rational
+from collections import defaultdict, OrderedDict
 from sympy.solvers.ode import constantsimp, constant_renumber, _mexpand, _undetermined_coefficients_match
 import sympy.solvers.ode
-from typing import Union, List, Tuple, Dict
+from typing import Union, List, Tuple, Dict, Any
 from sympy.abc import mu
 
 Number = Union[int, float]
@@ -11,12 +11,12 @@ Number = Union[int, float]
 t = Symbol('t', real=True)
 
 __all__ = [
-    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "undetermined_coefficients", "nth_order_const_coeff", "t"
+    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "first_order_bernoulli", "undetermined_coefficients", "nth_order_const_coeff", "t"
 ]
 
 
 class Content:
-    def __init__(self, content, *args, **kwargs):
+    def __init__(self, content: Any, *args, **kwargs):
         self.content = content
         self.options = kwargs
 
@@ -47,7 +47,7 @@ class Procedure:
             return False      # Probably standard Python interpreter
 
     class Text(Content):
-        def __init__(self, content, *args, **kwargs):
+        def __init__(self, content: str, *args, **kwargs):
             options = {
                 'nl': kwargs.get('nl', False)
             }
@@ -61,7 +61,7 @@ class Procedure:
             return self.content
 
     class Equation(Content):
-        def __init__(self, content, *args, **kwargs):
+        def __init__(self, content: Symbol, *args, **kwargs):
             options = {
                 'nl': kwargs.get('nl', True),
                 'ln_notation': kwargs.get('ln_notation', True),
@@ -78,7 +78,7 @@ class Procedure:
             return pretty(self.content)
 
     class EquArray(Content):
-        def __init__(self, content, *args, **kwargs):
+        def __init__(self, content: List[Symbol], *args, **kwargs):
             options = {
                 'nl': kwargs.get('nl', True),
                 'ln_notation': kwargs.get('ln_notation', True),
@@ -99,7 +99,7 @@ class Procedure:
             return pretty(self.content)
 
     class EquList(Content):
-        def __init__(self, content, *args, **kwargs):
+        def __init__(self, content: List[Symbol], *args, **kwargs):
             options = {
                 'nl': kwargs.get('nl', True),
                 'ln_notation': kwargs.get('ln_notation', True),
@@ -118,7 +118,7 @@ class Procedure:
             return pretty(self.content)
 
     class LaTeX(Content):
-        def __init__(self, content, *args, **kwargs):
+        def __init__(self, content: str, *args, **kwargs):
             options = {
                 'nl': kwargs.get('nl', False)
             }
@@ -135,24 +135,28 @@ class Procedure:
     def __init__(self):
         self.content = []
 
-    def text(self, text, **kwargs):
+    def text(self, text: str, **kwargs):
         self.content.append(self.Text(text, **kwargs))
         return self
 
-    def latex(self, tex, **kwargs):
+    def latex(self, tex: str, **kwargs):
         self.content.append(self.LaTeX(tex, **kwargs))
         return self
 
-    def eq(self, eq, **kwargs):
+    def eq(self, eq: Symbol, **kwargs):
         self.content.append(self.Equation(eq, **kwargs))
         return self
 
-    def equarr(self, eqs, **kwargs):
+    def equarr(self, eqs: List[Symbol], **kwargs):
         self.content.append(self.EquArray(eqs, **kwargs))
         return self
 
-    def equlist(self, eqs, **kwargs):
+    def equlist(self, eqs: List[Symbol], **kwargs):
         self.content.append(self.EquList(eqs, **kwargs))
+        return self
+
+    def extend(self, other):
+        self.content.extend(other.content)
         return self
 
     def display_ipython(self):
@@ -210,18 +214,24 @@ def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbo
         return result_set, procedure
 
 
-def first_order_linear(p: Symbol, q: Symbol, y: Symbol = Symbol('y'), t: Symbol = t) -> Tuple[Symbol, Procedure]:
-    y = Symbol('y')
-    c = Symbol('c')
-    p_int = integrate(p, t)
-    miu_t = exp(p_int)
-    miu_t_q_t = q * miu_t
-    p_int_exp_q_int = integrate(miu_t_q_t, t) + c
-    result = p_int_exp_q_int / miu_t
-    result_simplified = simplify(result)
-    procedure = [('\\text{Calculate the integrating factor}', [Eq(Integral(p, t), p_int, evaluate=False), Eq(mu, miu_t, evaluate=False)]), ('\\text{Multiply the integrating factor with both sides of the equation}', [
-        Eq((Derivative(y, t) + y * p) * miu_t, q * miu_t, evaluate=False)]), ('\\text{Integrate both sides of the equation}', [Eq(y * miu_t, p_int_exp_q_int, evaluate=False)]), ('\\text{Simplify the result}', [result])]
-    return result_simplified, procedure
+def first_order_linear(pt: Symbol, qt: Symbol, t: Symbol = t, y : Function = Function('y')(t)) -> Tuple[Symbol, Procedure]:
+    mu = exp(integrate(pt, t))
+
+    r = qt * mu
+
+    rhs = integrate(qt * mu, t) + Symbol('C')
+    result = simplify(rhs / mu).expand()
+
+    procedure = Procedure()
+    procedure.text('Calculate the integrating factor ').latex('\\mu', nl=True)\
+            .eq(Eq(Dummy('mu'), Eq(exp(Integral(pt, t)), mu, evaluate=False), evaluate=False))\
+            .text('Multiply both sides of the equation by ').latex('\\mu', nl=True)\
+            .eq(Eq(((y.diff(t) + y * pt) * mu).expand(), r, evaluate=False))\
+            .eq(Eq(Derivative(y * mu, t), r, evaluate=False))\
+            .eq(Eq(y * mu, rhs, evaluate=False))\
+            .eq(Eq(y, result, evaluate=False))
+
+    return result, procedure
 
 
 def first_order_homogeneous(F: Symbol, y: Symbol = Symbol('y'), t: Symbol = t):
@@ -354,15 +364,39 @@ def first_order_exact(M: Symbol, N: Symbol, implicit=True, y: Symbol = Symbol('y
     pass
 
 
-def first_order_bernoulli():
-    pass
+def first_order_bernoulli(pt: Symbol, qt: Symbol, n: Number, t : Symbol = t):
+    procedure = Procedure()
+    y = Function('y', real=True)(t)
+    v = Function('v', real=True)(t)
 
+    vp = v.diff(t)
+    yp = y ** n / (1 - n) * vp
+
+    procedure.text('Use the substitution ').latex('v = y^{1-n}').text(', ').latex('y = v y^n', nl=True)\
+    .eq(Eq(Function('v')(t).diff(t), (y ** (1 - n)).diff(t), evaluate=False), nl=False).latex('\\Rightarrow')\
+    .eq(Eq(y.diff(t), yp, evaluate=False))\
+    .text('Substitute ').latex("y'(t)").text(' into the original equation', nl=True)\
+    .eq(Eq(yp + pt * y, qt * y ** n, evaluate=False))\
+    .text('Divide both sides by ').latex('\\frac{y^{n}}{n - 1}', nl=True)\
+    .eq(Eq(vp + (1 - n) * pt * y ** (1 - n), (1 - n) * qt, evaluate=False))\
+    .text('Note that ').latex('v = y^{1-n}', nl=True)\
+    .eq(Eq(vp + (1 - n) * pt * v, (1 - n) * qt, evaluate=False))\
+    .text('Now we need to solve the linear ODE in ').latex('v', nl=True)
+
+    res, _ = first_order_linear((1 - n) * pt, (1 - n) * qt, t, v)
+    result = simplify(res ** (Rational(1, 1 - n)))
+
+    procedure.extend(_)\
+        .text('Use ').latex('y = v^{\\frac{1}{1 - n}}').text(' to solve for ').latex('y', nl=True)\
+        .eq(Eq(y, result, evaluate=False))
+
+    return result, procedure
 
 def first_order_riccati():
     pass
 
 
-def _derivative_repr(y: Function = Function('y', real=True), t: Symbol = "t", order: int = 0):
+def _derivative_repr(y: Function = Function('y', real=True), t: Symbol = t, order: int = 0):
     return y(t).diff(t, order)
 
 
@@ -405,18 +439,15 @@ def nth_order_const_coeff(*coeffs: List[Symbol], t: Symbol = t) -> Tuple[List[Sy
     sols = []
     for root, mult in root_dict.items():
         for i in range(mult):
-            reroot = re(root)
-            imroot = im(root)
-            if imroot.has(atan2) and reroot.has(atan2):
-                # Remove this condition when re and im stop returning
-                # circular atan2 usages.
+            if isinstance(root, RootOf):
                 sols.append(t**i * exp(root*t))
+            elif root.is_real:
+                sols.append(t**i*exp(root*t))
             else:
                 if root in conjugate_roots:
                     continue
-                if imroot == 0:
-                    sols.append(t**i*exp(reroot*t))
-                    continue
+                reroot = re(root)
+                imroot = im(root)
                 conjugate_roots.append(conjugate(root))
                 sols.append(t**i*exp(reroot*t) * sin(abs(imroot) * t))
                 sols.append(t**i*exp(reroot*t) * cos(imroot * t))
@@ -525,7 +556,7 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = t) -> Tuple
 def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], gt: Symbol, t: Symbol = t) -> Tuple[Symbol, Procedure]:
     """
     Solve a linear diff eq with const coefficients using the method of undetermined coefficients
-    Modified from sympy's source code
+    Modified from sympy's source code to print out procedure
 
     :param gensols: a list of general solutions
     :param func_coeffs: a list of constant coefficients (a1 yn + a2 yn-1 + ... + an-1 y' + an y = g(t)
@@ -844,10 +875,12 @@ def main():
 
     yp, _ = variation_of_parameters(sols, ln(t))
     _.display()
-    # y = Function('y')
-    # print(sympy.dsolve(y(t).diff(t, 2) - 12 *
-    #                    y(t).diff(t) + 36 * y(t) - 7 / t * exp(6*t), y(t)))
+
+    y = Function('y')
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    y = Function('y')
+    print(sympy.classify_ode(y(t).diff(t, 2) - 12 * y(t).diff(t) + 36 * y(t) - 7 / t * exp(6*t), y(t)))
+    print(sympy.classify_ode(y(t).diff(t) + 36 * y(t) + 36 * y(t)**2 * 7 / t * exp(6*t), y(t)))
