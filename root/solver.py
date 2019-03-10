@@ -7,7 +7,6 @@ from typing import Union, List, Tuple, Dict, Any
 from sympy.abc import mu
 
 Number = Union[int, float]
-# Procedure = List[Tuple[str, List[Symbol]]]
 t = Symbol('t', real=True)
 
 __all__ = [
@@ -214,7 +213,7 @@ def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbo
         return result_set, procedure
 
 
-def first_order_linear(pt: Symbol, qt: Symbol, t: Symbol = t, y : Function = Function('y')(t)) -> Tuple[Symbol, Procedure]:
+def first_order_linear(pt: Symbol, qt: Symbol, t: Symbol = t, y : Function = Function('y', real=True)(t)) -> Tuple[Symbol, Procedure]:
     mu = exp(integrate(pt, t))
 
     r = qt * mu
@@ -403,10 +402,6 @@ def first_order_riccati():
     pass
 
 
-def _derivative_repr(y: Function = Function('y', real=True), t: Symbol = t, order: int = 0):
-    return y(t).diff(t, order)
-
-
 def find_root(a: Number, b: Number, c: Number) -> Tuple[Symbol, Symbol]:
     """
     Return the root of the characteristic equation ar^2 + br + c = 0
@@ -516,7 +511,7 @@ def sec_order_euler(a: Number, b: Number, c: Number, t: Symbol = t) -> Tuple[Lis
     return [y1, y2], procedure
 
 
-def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = t) -> Tuple[Symbol, Procedure]:
+def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = t, func: Function = Function('y', real=True)(t)) -> Tuple[Symbol, Procedure]:
     """
     Solve the initial value problem given the general solution y
 
@@ -530,16 +525,9 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = t) -> Tuple
 
     for i, (t1, y1) in enumerate(v):
         derivative = diff(y, t, i)
-
         d_simp = simplify(derivative)
-
         eq = Eq(d_simp.subs(t, t1), y1)
-        # derivatives.append(Eq(_derivative_repr(order=i),
-        #                       Eq(derivative, d_simp, evaluate=False), evaluate=False))
-
-        derivatives.append(
-            Eq(_derivative_repr(order=i), d_simp, evaluate=False))
-
+        derivatives.append(Eq(func.diff(t, i), d_simp, evaluate=False))
         equations.append(eq)
 
     sol = solve(equations)
@@ -554,7 +542,7 @@ def solve_ivp(y: Symbol, v: List[Tuple[Number, Number]], t: Symbol = t) -> Tuple
         .equarr(equations)\
         .text('Solve for the arbitrary constants', nl=True)\
         .equarr([Eq(k, v, evaluate=False) for k, v in sol.items()])\
-        .text('Substitute the solved constants into ').latex('y(t)')\
+        .text('Substitute the solved constants into ').latex('y(t)', nl=True)\
         .eq(Eq(Dummy('y'), y, evaluate=False))
 
     return y, procedure
@@ -570,7 +558,7 @@ def undetermined_coefficients(gensols: List[Symbol], func_coeffs: List[Symbol], 
     :param gt: The RHS of the diff eq.
     """
 
-    Y = Function('Y')(t)
+    Y = Function('Y', real=True)(t)
 
     coeffs = numbered_symbols('A', cls=Dummy)
     coefflist = []
@@ -883,7 +871,6 @@ def main():
     yp, _ = variation_of_parameters(sols, ln(t))
     _.display()
 
-    y = Function('y')
 
 
 if __name__ == "__main__":
