@@ -248,6 +248,13 @@ def first_order_homogeneous(F: Symbol, y: Symbol = Symbol('y'), t: Symbol = t):
         1 / (f_subs - v), 1 / t, y=v)
     result = result_separable.subs(v, y / t)
 
+    procedure = Procedure()
+
+    procedure.text('Substitute')\
+        .latex('\\frac{y}{t}', nl = False)\
+        .text('with')\
+        .latex()
+
     procedure = [('\\text{Substitute $\\frac{y}{t}$ with $v$}', [Eq(Derivative(y, t), F, evaluate=False), Eq(v + t * Derivative(v, t), f_subs, evaluate=False)]),
                  ('\\text{Simplify,}', [Eq(Derivative(v, t), (f_subs - v) / t, evaluate=False)]), ('\\text{Solve the separable differential equation}', [])]
     procedure.extend(p_separable)

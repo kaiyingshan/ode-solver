@@ -30,7 +30,7 @@ def parseNum(args: List[str]) -> Tuple[bool, List[Union[solver.Number, Symbol]]]
     return const_coeff, parsed
 
 @app.route("/ode/", method=['POST', 'GET'])
-def ode():
+def ode(request):
     if request.method == "POST":
 
         p: str = request.POST["p"]
