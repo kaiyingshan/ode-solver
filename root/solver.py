@@ -874,7 +874,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    y = Function('y')
-    print(sympy.classify_ode(y(t).diff(t, 2) - 12 * y(t).diff(t) + 36 * y(t) - 7 / t * exp(6*t), y(t)))
-    print(sympy.classify_ode(y(t).diff(t) + 36 * y(t) + 36 * y(t)**2 * 7 / t * exp(6*t), y(t)))
+    pass
