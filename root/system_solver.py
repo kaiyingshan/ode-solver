@@ -7,6 +7,10 @@ from typing import Union, List, Tuple, Dict, Any
 from sympy.abc import mu
 from .solver import *
 
+__all__ = [
+    "t", "system", "nonhomo_system_variation_of_parameters"
+]
+
 
 def system(coeffs: List[List[Union[Symbol, int]]], t: Symbol = Symbol('t', real=True)):
     matrix = Matrix(coeffs)
@@ -79,24 +83,59 @@ def system(coeffs: List[List[Union[Symbol, int]]], t: Symbol = Symbol('t', real=
 
     procedure.text('General solution: ', nl=True)
     procedure.latex('\\vec{\\mathbf{x}} = ')
+    gen_sols = []
     for i in range(len(sols)):
         sol = sols[i]
         if sol[0] == 'real':
             procedure.eq(next(consts), nl=False).eq(
                 sol[1], nl=False).eq(sol[2], nl=False)
+            gen_sols.append(sol[1] * sol[2])
         elif sol[0] == 'gen':
             procedure.eq(next(consts), nl=False).eq(sol[1], nl=False)\
                 .latex('\\left(').eq(sol[2], nl=False).latex('t + ')\
                 .eq(sol[3], nl=False).latex('\\right)')
+            gen_sols.append(sol[1] * sol[2]*t)
+            gen_sols.append(sol[1] * sol[3])
         elif sol[0] == 'comp':
             procedure.eq(sol[1], nl=False)\
                 .latex('\\left(').eq(next(consts), nl=False).eq(sol[2], nl=False).latex(' + ')\
                 .eq(next(consts), nl=False).eq(sol[3], nl=False).latex('\\right)')
+            gen_sols.append(sol[1] * sol[2])
+            gen_sols.append(sol[1] * sol[3])
 
         if i != len(sols) - 1:
             procedure.latex('+')
 
-    return procedure
+    return gen_sols, procedure
+
+
+def nonhomo_system_variation_of_parameters(xc: List[Symbol], gt, t: Symbol = Symbol('t', real=True)):
+    fund_matrix = eye(len(xc))
+    for i, x in enumerate(xc):
+        fund_matrix[:, i] = x
+
+    procedure = Procedure()
+    procedure.text('Fundamental matrix ').latex('\\Psi', nl=True)\
+        .eq(fund_matrix)
+
+    gt = Matrix(gt)
+    fund_inv = fund_matrix**(-1)
+    procedure.text('Calculate the inverse of the fundamental matrix ').latex('\\Psi^{-1}', nl=True)\
+        .latex('\\Psi^{-1} = ').eq(fund_inv)
+
+    fund_inv_gt = expand(simplify(fund_inv * gt))
+    procedure.text('Compute ').latex('\\Psi^{-1} g(t)', nl=True)\
+        .latex('\\Psi^{-1} g(t) = ').eq(fund_inv_gt)
+
+    procedure.text('Compute the integral', nl=True)
+    fund_inv_gt_int = expand(simplify(integrate(fund_inv_gt)))
+    procedure.latex('\\int \\Psi^{-1} g(t) =').eq(fund_inv_gt_int)
+
+    procedure.text('Finally, ').latex(
+        '\\vec{\\mathbf{x_p}} = \\Psi \\int \\Psi^{-1} g(t)', nl=True)
+    sol = expand(fund_matrix * fund_inv_gt_int)
+    procedure.latex('\\vec{\\mathbf{x_p}} =').eq(sol)
+    return sol, procedure
 
 
 if __name__ == "__main__":
