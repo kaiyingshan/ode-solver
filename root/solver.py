@@ -10,7 +10,7 @@ Number = Union[int, float]
 t = Symbol('t', real=True)
 
 __all__ = [
-    "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "first_order_bernoulli", "undetermined_coefficients", "nth_order_const_coeff", "t"
+   "Procedure", "find_root", "sec_order_euler", "solve_ivp", "red_order", "Wronskian", "variation_of_parameters", "to_std", "to_general", "first_order_separable", "first_order_linear", "first_order_homogeneous", "first_order_autonomous", "first_order_exact", "first_order_bernoulli", "undetermined_coefficients", "nth_order_const_coeff", "t"
 ]
 
 
@@ -195,22 +195,23 @@ def display(sym):
 
 
 def first_order_separable(Y: Symbol, T: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = t) -> Tuple[Symbol, Procedure]:
-    c = Symbol('c')
+    # c = Symbol('c')
 
-    y_int = integrate(Y, y)
-    t_int = integrate(T, t)
-    procedure = [("\\text{Integrate y and t,}", [Eq(Integral(Y, y), Integral(
-        T, t), evaluate=False), Eq(y_int, t_int + c, evaluate=False)])]
-    # procedure = [("\\text{Integrate y}", [y_int]), ('\\text{Integrate t}', [t_int])]
-    if implicit:
-        result = Eq(y_int, t_int + c, evaluate=False)
-        return result, procedure
-    else:
-        result = solveset(Eq(y_int, t_int), y)
-        result_set = FiniteSet()
-        for i in result:
-            result_set = result_set + FiniteSet(simplify(i))
-        return result_set, procedure
+    # y_int = integrate(Y, y)
+    # t_int = integrate(T, t)
+    # procedure = [("\\text{Integrate y and t,}", [Eq(Integral(Y, y), Integral(
+    #     T, t), evaluate=False), Eq(y_int, t_int + c, evaluate=False)])]
+    # # procedure = [("\\text{Integrate y}", [y_int]), ('\\text{Integrate t}', [t_int])]
+    # if implicit:
+    #     result = Eq(y_int, t_int + c, evaluate=False)
+    #     return result, procedure
+    # else:
+    #     result = solveset(Eq(y_int, t_int), y)
+    #     result_set = FiniteSet()
+    #     for i in result:
+    #         result_set = result_set + FiniteSet(simplify(i))
+    #     return result_set, procedure
+    pass
 
 
 def first_order_linear(pt: Symbol, qt: Symbol, t: Symbol = t, y : Function = Function('y', real=True)(t)) -> Tuple[Symbol, Procedure]:
@@ -234,139 +235,140 @@ def first_order_linear(pt: Symbol, qt: Symbol, t: Symbol = t, y : Function = Fun
 
 
 def first_order_homogeneous(F: Symbol, y: Symbol = Symbol('y'), t: Symbol = t):
-    from IPython.display import display
-    v, c = symbols('v c')
+    # from IPython.display import display
+    # v, c = symbols('v c')
 
-    f_subs = F.subs(y / t, v)
+    # f_subs = F.subs(y / t, v)
 
-    f_subs = f_subs.subs(t / y, 1 / v)
+    # f_subs = f_subs.subs(t / y, 1 / v)
 
-    logcombine(f_subs, force=True)
+    # logcombine(f_subs, force=True)
 
-    result_separable, p_separable = first_order_separable(
-        1 / (f_subs - v), 1 / t, y=v)
-    result = result_separable.subs(v, y / t)
+    # result_separable, p_separable = first_order_separable(
+    #     1 / (f_subs - v), 1 / t, y=v)
+    # result = result_separable.subs(v, y / t)
 
-    procedure = Procedure()
+    # procedure = Procedure()
 
-    procedure.text('Substitute')\
-        .latex('\\frac{y}{t}', nl = False)\
-        .text('with')\
-        .latex()
+    # procedure.text('Substitute')\
+    #     .latex('\\frac{y}{t}', nl = False)\
+    #     .text('with')\
+    #     .latex()
 
-    procedure = [('\\text{Substitute $\\frac{y}{t}$ with $v$}', [Eq(Derivative(y, t), F, evaluate=False), Eq(v + t * Derivative(v, t), f_subs, evaluate=False)]),
-                 ('\\text{Simplify,}', [Eq(Derivative(v, t), (f_subs - v) / t, evaluate=False)]), ('\\text{Solve the separable differential equation}', [])]
-    procedure.extend(p_separable)
-    procedure.append(('\\text{Replace v with $\\frac{y}{t}$}', [result]))
-    return result, procedure
-
+    # procedure = [('\\text{Substitute $\\frac{y}{t}$ with $v$}', [Eq(Derivative(y, t), F, evaluate=False), Eq(v + t * Derivative(v, t), f_subs, evaluate=False)]),
+    #              ('\\text{Simplify,}', [Eq(Derivative(v, t), (f_subs - v) / t, evaluate=False)]), ('\\text{Solve the separable differential equation}', [])]
+    # procedure.extend(p_separable)
+    # procedure.append(('\\text{Replace v with $\\frac{y}{t}$}', [result]))
+    # return result, procedure
+    pass
 
 def first_order_autonomous(F: Symbol, implicit=True, y: Symbol = Symbol('y'), t: Symbol = t):
-    c = Symbol('c')
+    # c = Symbol('c')
 
-    f_int = integrate(1 / F, y)
+    # f_int = integrate(1 / F, y)
 
-    result = Eq(f_int, t + c, evaluate=False)
+    # result = Eq(f_int, t + c, evaluate=False)
 
-    procedure = [('\\text{Separate variables,}', [
-                  Eq(Integral(1 / F, y), Integral(1, t) + c, evaluate=False)])]
+    # procedure = [('\\text{Separate variables,}', [
+    #               Eq(Integral(1 / F, y), Integral(1, t) + c, evaluate=False)])]
 
-    if implicit:
-        return result, procedure
-    else:
-        result = solveset(Eq(f_int, t + c), y)
+    # if implicit:
+    #     return result, procedure
+    # else:
+    #     result = solveset(Eq(f_int, t + c), y)
 
-        for i in result:
-            result_solved = i
-        return Eq(y, result_solved, evaluate=False), procedure
+    #     for i in result:
+    #         result_solved = i
+    #     return Eq(y, result_solved, evaluate=False), procedure
+    pass
 
 
 def first_order_exact(M: Symbol, N: Symbol, implicit=True, y: Symbol = Symbol('y'), x: Symbol = Symbol('x')):
-    c = Symbol('c')
-    m, n, my, nx, h_symbol = symbols('M N My Nx h')
-    My = diff(M, y)
-    Nx = diff(N, x)
-    exact = My.equals(Nx)
-    procedure = []
+    # c = Symbol('c')
+    # m, n, my, nx, h_symbol = symbols('M N My Nx h')
+    # My = diff(M, y)
+    # Nx = diff(N, x)
+    # exact = My.equals(Nx)
+    # procedure = []
 
-    if not exact:
-        # integrating factor
-        miu_diff_x = (My - Nx) / N
-        miu_diff_x = simplify(miu_diff_x)
+    # if not exact:
+    #     # integrating factor
+    #     miu_diff_x = (My - Nx) / N
+    #     miu_diff_x = simplify(miu_diff_x)
 
-        if y in miu_diff_x.free_symbols:
+    #     if y in miu_diff_x.free_symbols:
 
-            miu_diff_y = (Nx - My) / M
-            miu_diff_x = simplify(miu_diff_y)
+    #         miu_diff_y = (Nx - My) / M
+    #         miu_diff_x = simplify(miu_diff_y)
 
-            if x in miu_diff_y.free_symbols:
-                return None, [('\\text{Could not solve}', [])]
+    #         if x in miu_diff_y.free_symbols:
+    #             return None, [('\\text{Could not solve}', [])]
 
-            else:
+    #         else:
 
-                rhs = integrate(miu_diff_y, y)
-                miu = Eq(ln(mu), rhs)
+    #             rhs = integrate(miu_diff_y, y)
+    #             miu = Eq(ln(mu), rhs)
 
-                miu_result = exp(rhs)
+    #             miu_result = exp(rhs)
 
-                procedure.extend([
-                    ('Calculate the integrating factor', [
-                        Eq(Derivative(mu, y), (Nx - My) * mu / M, evaluate=False)
-                    ]),
-                    ('\\text{The integrating factor is}', [miu_result])
-                ])
-                pass
+    #             procedure.extend([
+    #                 ('Calculate the integrating factor', [
+    #                     Eq(Derivative(mu, y), (Nx - My) * mu / M, evaluate=False)
+    #                 ]),
+    #                 ('\\text{The integrating factor is}', [miu_result])
+    #             ])
+    #             pass
 
-        else:
+    #     else:
 
-            rhs = integrate(miu_diff_x, x)
-            miu = Eq(ln(mu), rhs + c)
+    #         rhs = integrate(miu_diff_x, x)
+    #         miu = Eq(ln(mu), rhs + c)
 
-            miu_result = exp(rhs)
+    #         miu_result = exp(rhs)
 
-            procedure.extend([
-                ('\\text{Calculate the integrating factor}', [
-                    Eq(Derivative(mu, x), (My - Nx) * mu / N, evaluate=False)
-                ]),
-                ('\\text{The integrating factor is}', [miu_result])
-            ])
+    #         procedure.extend([
+    #             ('\\text{Calculate the integrating factor}', [
+    #                 Eq(Derivative(mu, x), (My - Nx) * mu / N, evaluate=False)
+    #             ]),
+    #             ('\\text{The integrating factor is}', [miu_result])
+    #         ])
 
-        M = M * miu_result
-        N = N * miu_result
+    #     M = M * miu_result
+    #     N = N * miu_result
 
-        My = diff(M, y)
-        Nx = diff(N, x)
+    #     My = diff(M, y)
+    #     Nx = diff(N, x)
 
-        procedure.append(('\\text{Multiply both sides with the integrating factor,}', [
-                         Eq(M + N * Derivative(y, x), 0, evaluate=False)]))
+    #     procedure.append(('\\text{Multiply both sides with the integrating factor,}', [
+    #                      Eq(M + N * Derivative(y, x), 0, evaluate=False)]))
 
-    m_int_x = integrate(M, x)
-    h_diff = N - integrate(My, x)
-    h = integrate(h_diff, y)
-    result = Eq(m_int_x + h, c, evaluate=False)
-    result_simplified = Eq(simplify(m_int_x + h), c, evaluate=False)
-    procedure.extend([
-        ('\\text{Determine if the equation is exact,}', [
-            Eq(m, M, evaluate=False),
-            Eq(n, N, evaluate=False),
-            Eq(my, My, evaluate=False),
-            Eq(nx, Nx, evaluate=False)
-        ]),
+    # m_int_x = integrate(M, x)
+    # h_diff = N - integrate(My, x)
+    # h = integrate(h_diff, y)
+    # result = Eq(m_int_x + h, c, evaluate=False)
+    # result_simplified = Eq(simplify(m_int_x + h), c, evaluate=False)
+    # procedure.extend([
+    #     ('\\text{Determine if the equation is exact,}', [
+    #         Eq(m, M, evaluate=False),
+    #         Eq(n, N, evaluate=False),
+    #         Eq(my, My, evaluate=False),
+    #         Eq(nx, Nx, evaluate=False)
+    #     ]),
 
-        ('\\text{The equation is exact,}',
-         [Eq(My, Nx, evaluate=False)]),
+    #     ('\\text{The equation is exact,}',
+    #      [Eq(My, Nx, evaluate=False)]),
 
-        ('\\text{Integrate $M$ with respect to $x$,}', [m_int_x]),
+    #     ('\\text{Integrate $M$ with respect to $x$,}', [m_int_x]),
 
-        ('\\text{Derive $h(y)$,}', [
-            Eq(Derivative(h_symbol, y), h_diff, evaluate=False), Eq(h_symbol, h)
-        ]),
+    #     ('\\text{Derive $h(y)$,}', [
+    #         Eq(Derivative(h_symbol, y), h_diff, evaluate=False), Eq(h_symbol, h)
+    #     ]),
 
-        ('\\text{The solution is,}', [result])
+    #     ('\\text{The solution is,}', [result])
 
-    ])
+    # ])
 
-    return result_simplified, procedure
+    # return result_simplified, procedure
     pass
 
 
@@ -432,7 +434,7 @@ def nth_order_const_coeff(*coeffs: List[Symbol], t: Symbol = t) -> Tuple[List[Sy
     # polynomials.
     char_eq_roots = roots(char_eq, multiple=True)
 
-    root_dict = defaultdict(int)
+    root_dict = defaultdict(int) # type: Dict[int, int]
 
     conjugate_roots = []
     for root in char_eq_roots:
