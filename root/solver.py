@@ -853,6 +853,11 @@ def to_general(y: List[Symbol], yp: Symbol = 0, t: Symbol = t, constant_prefix: 
 
 
 def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
+    """
+    Solve at most 3 linear homogeneous system of ode with constant coefficients 
+
+    :param coeffs: the matrix of coefficients, as 2D array
+    """
     matrix = Matrix(coeffs)
     procedure = Procedure()
     ident = eye(matrix.rows)
@@ -860,7 +865,7 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
     char_eq = simplify((matrix - lam * ident).det())
 
     procedure\
-        .text('characteristic equation: ', nl=True)\
+        .text('Characteristic equation: ', nl=True)\
         .eq(Eq(char_eq, 0, evaluate=False))
 
     rts = roots(char_eq, lam)
@@ -874,13 +879,28 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
     conj_roots = []
     for eigenval, mult, eigenvec in eigenvects:
 
+        # skip the conjugates of complex eigenvalues
+        if not eigenval.is_real:
+            if eigenval in conj_roots:
+                continue
         if mult != len(eigenvec):  # repeated eigenvectors
             procedure.latex('\\lambda_{%s} = %s\\,\\,' %
                             (",".join(map(lambda x: str(x), range(count, mult + count))), eigenval), nl=True)
+
+            aug_matrix = (matrix - eigenval * ident).col_insert(matrix.cols, Matrix([0 for i in range(matrix.rows)]))
+            procedure.eq(aug_matrix, nl=False).text(' ~ ').eq(aug_matrix.rref()[0], nl=False).latex('\\Rightarrow ')
+
             procedure.eq(Eq(Dummy('v'), eigenvec[0], evaluate=False))
 
+            procedure.text('Find the generalized eigenvector')\
+                .latex('\\left( M - \\lambda I \\right) w = v ', nl=True)
+            
             vec_syms = symbols('a0:{}'.format(matrix.rows))
             generalized_eigenvec = Matrix(vec_syms)
+
+            # note: insert is not in-place
+            aug_matrix = (matrix - eigenval * ident).col_insert(matrix.cols, eigenvec[0]) 
+            procedure.eq(aug_matrix, nl=False).text(' ~ ').eq(aug_matrix.rref()[0], nl=False)
 
             result = solve((matrix - eigenval * ident) *
                            Matrix(generalized_eigenvec) - eigenvec[0], generalized_eigenvec)
@@ -895,8 +915,8 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
             for i, var in enumerate(free_vars):  # use 0, 1... for free variables
                 generalized_eigenvec = generalized_eigenvec.subs(var, i)
 
-            procedure.eq(
-                Eq(Dummy('w'), generalized_eigenvec, evaluate=False))
+            procedure.latex('\\Rightarrow ')\
+                .eq(Eq(Dummy('w'), generalized_eigenvec, evaluate=False))
 
             sols.append(
                 ['gen', exp(eigenval * t), eigenvec[0], generalized_eigenvec])
@@ -905,13 +925,25 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
             procedure.latex('\\lambda_{} = {}'.format(
                 count, eigenval), nl=True)
             for i in range(mult):
+                
+                aug_matrix = (matrix - eigenval * ident)\
+                    .col_insert(matrix.cols, Matrix([0 for i in range(matrix.rows)]))
+                procedure.eq(aug_matrix, nl=False).text(' ~ ')\
+                    .eq(aug_matrix.rref()[0], nl=False).latex('\\Rightarrow ')
+
                 procedure.eq(Eq(Dummy('v'), eigenvec[i], evaluate=False))
                 if not eigenval.is_real:
-                    if eigenval in conj_roots:
-                        continue
                     real, imag = eigenval.as_real_imag()
                     real_vec, imag_vec = (
                         eigenvec[i] * expand(exp(imag*I*t), complex=True)).as_real_imag()
+
+                    procedure.text("Use Euler's formula to expand the imaginary part", nl=True)
+                    procedure.eq(eigenvec[i], nl=False).latex(' ').eq(exp(real*t + imag*I*t), nl=False)\
+                        .latex(' = ').eq(exp(real*t), nl=False).latex(' ')\
+                        .eq(eigenvec[i] * expand(exp(imag*I*t), complex=True), nl=False).latex(' = ')\
+                        .eq(exp(real*t), nl=False).latex('\\left( ').eq(real_vec, nl=False)\
+                        .latex(' + ').eq(imag_vec, nl=False).latex('\\right)', nl=True)
+
                     sols.append(['comp', exp(real * t), real_vec, imag_vec])
 
                     # we don't need the conjugate
@@ -950,6 +982,15 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
 
 
 def nonhomo_system_variation_of_parameters(xc: List[Symbol], gt, t: Symbol = Symbol('t', real=True)):
+    """
+    Given the complementary solution, solve a nonhomogeneous system of odes using the method of variation of parameters
+
+    Note that the equation must be in standard form:
+    x' = Mx + g(t)
+
+    :param xc: the array of complementary solutions
+    :param gt: g(t)
+    """
     fund_matrix = eye(len(xc))
     for i, x in enumerate(xc):
         fund_matrix[:, i] = x
