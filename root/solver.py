@@ -883,15 +883,38 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
         if not eigenval.is_real:
             if eigenval in conj_roots:
                 continue
+
+        procedure.latex('\\lambda_{} = {}'.format(
+            count, eigenval), nl=True)
+        for i in range(len(eigenvec)):
+            
+            aug_matrix = (matrix - eigenval * ident)\
+                .col_insert(matrix.cols, Matrix([0 for i in range(matrix.rows)]))
+            procedure.eq(aug_matrix, nl=False).text(' ~ ')\
+                .eq(aug_matrix.rref()[0], nl=False).latex('\\Rightarrow ')
+
+            procedure.eq(Eq(Dummy('v'), eigenvec[i], evaluate=False))
+            if not eigenval.is_real:
+                real, imag = eigenval.as_real_imag()
+                real_vec, imag_vec = (
+                    eigenvec[i] * expand(exp(imag*I*t), complex=True)).as_real_imag()
+
+                procedure.text("Use Euler's formula to expand the imaginary part", nl=True)
+                procedure.eq(eigenvec[i], nl=False).latex(' ').eq(exp(real*t + imag*I*t), nl=False)\
+                    .latex(' = ').eq(exp(real*t), nl=False).latex(' ')\
+                    .eq(eigenvec[i] * expand(exp(imag*I*t), complex=True), nl=False).latex(' = ')\
+                    .eq(exp(real*t), nl=False).latex('\\left( ').eq(real_vec, nl=False)\
+                    .latex(' + ').eq(imag_vec, nl=False).latex('\\right)', nl=True)
+                # if mult == len(eigenvec):
+                sols.append(['comp', exp(real * t), real_vec, imag_vec])
+
+                # we don't need the conjugate
+                conj_roots.append(conjugate(eigenval))
+            else:
+                # if mult == len(eigenvec):
+                sols.append(['real', exp(eigenval * t), eigenvec[i]])
+        
         if mult != len(eigenvec):  # repeated eigenvectors
-            procedure.latex('\\lambda_{%s} = %s\\,\\,' %
-                            (",".join(map(lambda x: str(x), range(count, mult + count))), eigenval), nl=True)
-
-            aug_matrix = (matrix - eigenval * ident).col_insert(matrix.cols, Matrix([0 for i in range(matrix.rows)]))
-            procedure.eq(aug_matrix, nl=False).text(' ~ ').eq(aug_matrix.rref()[0], nl=False).latex('\\Rightarrow ')
-
-            procedure.eq(Eq(Dummy('v'), eigenvec[0], evaluate=False))
-
             procedure.text('Find the generalized eigenvector')\
                 .latex('\\left( M - \\lambda I \\right) w = v ', nl=True)
             
@@ -899,14 +922,16 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
             generalized_eigenvec = Matrix(vec_syms)
 
             # note: insert is not in-place
+            # construct the augmented matrix [ M-lambda I | v]
             aug_matrix = (matrix - eigenval * ident).col_insert(matrix.cols, eigenvec[0]) 
             procedure.eq(aug_matrix, nl=False).text(' ~ ').eq(aug_matrix.rref()[0], nl=False)
 
             result = solve((matrix - eigenval * ident) *
-                           Matrix(generalized_eigenvec) - eigenvec[0], generalized_eigenvec)
+                           generalized_eigenvec - eigenvec[0], generalized_eigenvec)
 
             free_vars = list(vec_syms)
 
+            # use free variables to express other variables
             for var in result:
                 if var in free_vars:
                     free_vars.remove(var)
@@ -920,36 +945,6 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
 
             sols.append(
                 ['gen', exp(eigenval * t), eigenvec[0], generalized_eigenvec])
-
-        else:
-            procedure.latex('\\lambda_{} = {}'.format(
-                count, eigenval), nl=True)
-            for i in range(mult):
-                
-                aug_matrix = (matrix - eigenval * ident)\
-                    .col_insert(matrix.cols, Matrix([0 for i in range(matrix.rows)]))
-                procedure.eq(aug_matrix, nl=False).text(' ~ ')\
-                    .eq(aug_matrix.rref()[0], nl=False).latex('\\Rightarrow ')
-
-                procedure.eq(Eq(Dummy('v'), eigenvec[i], evaluate=False))
-                if not eigenval.is_real:
-                    real, imag = eigenval.as_real_imag()
-                    real_vec, imag_vec = (
-                        eigenvec[i] * expand(exp(imag*I*t), complex=True)).as_real_imag()
-
-                    procedure.text("Use Euler's formula to expand the imaginary part", nl=True)
-                    procedure.eq(eigenvec[i], nl=False).latex(' ').eq(exp(real*t + imag*I*t), nl=False)\
-                        .latex(' = ').eq(exp(real*t), nl=False).latex(' ')\
-                        .eq(eigenvec[i] * expand(exp(imag*I*t), complex=True), nl=False).latex(' = ')\
-                        .eq(exp(real*t), nl=False).latex('\\left( ').eq(real_vec, nl=False)\
-                        .latex(' + ').eq(imag_vec, nl=False).latex('\\right)', nl=True)
-
-                    sols.append(['comp', exp(real * t), real_vec, imag_vec])
-
-                    # we don't need the conjugate
-                    conj_roots.append(conjugate(eigenval))
-                else:
-                    sols.append(['real', exp(eigenval * t), eigenvec[i]])
 
         count += mult
 
@@ -966,8 +961,7 @@ def system(coeffs: List[List[int]], t: Symbol = Symbol('t', real=True)):
             procedure.eq(next(consts), nl=False).eq(sol[1], nl=False)\
                 .latex('\\left(').eq(sol[2], nl=False).latex('t + ')\
                 .eq(sol[3], nl=False).latex('\\right)')
-            gen_sols.append(sol[1] * sol[2]*t)
-            gen_sols.append(sol[1] * sol[3])
+            gen_sols.append(sol[1] * sol[2] * t + sol[1] * sol[3])
         elif sol[0] == 'comp':
             procedure.eq(sol[1], nl=False)\
                 .latex('\\left(').eq(next(consts), nl=False).eq(sol[2], nl=False).latex(' + ')\
